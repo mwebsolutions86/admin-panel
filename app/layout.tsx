@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeProvider } from "@/components/theme-provider"
+import { Sidebar } from "@/components/sidebar"; // Import de notre Sidebar
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Universal Eats Admin",
-  description: "Back-office de gestion",
+  title: "Control Tower - Universal Eats",
+  description: "Système de gestion global",
 };
 
 export default function RootLayout({
@@ -17,19 +18,31 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" suppressHydrationWarning>
-      {/* CORRECTION ICI : 
-         On ajoute les classes bg-gray-50 (clair) et bg-slate-950 (sombre) 
-         directement dans le className. Plus d'erreur CSS !
-      */}
-      <body className={`${inter.className} bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100`}>
+      <body 
+        className={`${inter.className} bg-gray-50 text-slate-900`}
+        suppressHydrationWarning={true} 
+      >
         <ThemeProvider
             attribute="class"
-            defaultTheme="system"
-            enableSystem
+            defaultTheme="light" // On force le light pour l'instant pour la lisibilité
+            enableSystem={false}
             disableTransitionOnChange
           >
-            {children}
-          </ThemeProvider>
+          
+          {/* LAYOUT PRINCIPAL : SIDEBAR + CONTENU */}
+          <div className="flex min-h-screen">
+            
+            {/* 1. LA TOUR DE CONTRÔLE (Fixe à gauche) */}
+            <Sidebar />
+
+            {/* 2. LE CONTENU VARIABLE (Décalé de la largeur de la sidebar) */}
+            <main className="flex-1 ml-64 min-h-screen bg-gray-50/50">
+                {children}
+            </main>
+
+          </div>
+
+        </ThemeProvider>
       </body>
     </html>
   );
