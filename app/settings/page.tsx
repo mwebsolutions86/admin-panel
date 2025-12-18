@@ -51,18 +51,24 @@ export default function SettingsPage() {
   // --- CHARGEMENT ---
   useEffect(() => {
     const fetchSettings = async () => {
-      const { data } = await supabase.from('stores').select('*').limit(1).single()
-      if (data) {
-        setStore(data)
-        setName(data.name || '')
-        setDescription(data.description || '')
-        setDeliveryFee(data.delivery_fees.toString())
-        setIsOpen(data.is_open)
-        setPrimaryColor(data.primary_color || '#FFC107')
-        setSecondaryColor(data.secondary_color || '#000000')
-        setLogoUrl(data.logo_url || '')
+      try {
+        const { data, error } = await supabase.from('stores').select('*').limit(1).single()
+        
+        if (data) {
+          setStore(data)
+          setName(data.name || '')
+          setDescription(data.description || '')
+          setDeliveryFee(data.delivery_fees?.toString() || '0')
+          setIsOpen(data.is_open)
+          setPrimaryColor(data.primary_color || '#FFC107')
+          setSecondaryColor(data.secondary_color || '#000000')
+          setLogoUrl(data.logo_url || '')
+        }
+      } catch (error) {
+        console.log("Aucun restaurant trouvé, prêt pour la création.")
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
     fetchSettings()
   }, [])
@@ -75,6 +81,7 @@ export default function SettingsPage() {
     const file = e.target.files[0];
 
     try {
+        // Optimisation de l'image (optionnel mais recommandé)
         const imageBitmap = await createImageBitmap(file);
         const canvas = document.createElement('canvas');
         canvas.width = imageBitmap.width;
@@ -110,21 +117,47 @@ export default function SettingsPage() {
   }
 
   const handleSave = async () => {
-    if (!store) return
     setSaving(true)
     
-    const { error } = await supabase.from('stores').update({
+    // Conversion sécurisée du prix (évite les erreurs NaN)
+    const fees = parseFloat(deliveryFee.replace(',', '.')) || 0;
+
+    const storeData = {
         name: name,
         description: description,
-        delivery_fees: parseFloat(deliveryFee),
+        delivery_fees: fees,
         is_open: isOpen,
         primary_color: primaryColor,
         secondary_color: secondaryColor,
         logo_url: logoUrl
-    }).eq('id', store.id)
+    }
+
+    let error = null;
+
+    if (store?.id) {
+        // SCÉNARIO 1 : MISE À JOUR (UPDATE)
+        const { error: updateError } = await supabase
+            .from('stores')
+            .update(storeData)
+            .eq('id', store.id)
+        error = updateError;
+    } else {
+        // SCÉNARIO 2 : CRÉATION (INSERT) - Si c'est la première fois
+        const { data: newStore, error: insertError } = await supabase
+            .from('stores')
+            .insert([storeData])
+            .select()
+            .single()
+        
+        if (newStore) setStore(newStore)
+        error = insertError;
+    }
 
     if (!error) notify("Paramètres du restaurant mis à jour ! 🚀", "success")
-    else notify("Erreur: " + error.message, "error")
+    else {
+        console.error(error)
+        notify("Erreur: " + error.message, "error")
+    }
     
     setSaving(false)
   }
