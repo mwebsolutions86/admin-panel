@@ -1,61 +1,64 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
-import { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
+import { useEffect, useState, useCallback } from 'react'
+import { createClient } from '@supabase/supabase-js'
+import { Database } from '@/types/supabase'
 import { 
-  CheckCircle2, 
-  ChefHat, 
-  Bell, 
-  Navigation, 
-  Activity,
-  X,
-  AlertCircle,
-  Map as MapIcon,
-  Loader2
+  Bell, ChefHat, Receipt, Loader2, Utensils, AlertCircle, CheckCircle2, Volume2, VolumeX 
 } from 'lucide-react'
+import { Order } from '@/types' // CORRECTION : suppression de OrderItem
 
-// Interfaces strictes
-interface OrderItem { 
-  product_name: string; 
-  quantity: number; 
-  options: string[]; 
-}
+import OrderCard from '@/components/dashboard/OrderCard'
+import OrderDetailsModal from '@/components/dashboard/OrderDetailsModal'
+import LocationModal from '@/components/dashboard/LocationModal'
 
-interface Order {
-  id: string; 
-  order_number: number; 
-  customer_name: string | null; 
-  customer_phone: string | null;
-  delivery_address: string | null; 
-  order_type: 'dine_in' | 'takeaway' | 'delivery';
-  total_amount: number; 
-  status: 'pending' | 'cooking' | 'ready' | 'completed' | 'cancelled';
-  created_at: string; 
-  location?: string | null;
-  items?: OrderItem[]; 
-}
+interface Toast { id: number; message: string; type: 'success' | 'warning' | 'error'; }
 
-interface Toast { 
-  id: number; 
-  message: string; 
-  type: 'success' | 'warning' | 'error'; 
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 export default function LiveDashboard() {
   const [orders, setOrders] = useState<Order[]>([])
-  const [stats, setStats] = useState({ pending: 0, cooking: 0, revenue: 0 })
-  const [now, setNow] = useState<number>(0) 
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
-  const [toasts, setToasts] = useState<Toast[]>([])
   const [loading, setLoading] = useState(true)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [stats, setStats] = useState({ pending: 0, cooking: 0, revenue: 0 })
+  const [now, setNow] = useState(0)
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  
+  const [toasts, setToasts] = useState<Toast[]>([])
+  const [soundEnabled, setSoundEnabled] = useState(false)
+  const [showLocationModal, setShowLocationModal] = useState(false)
 
-  const notify = (message: string, type: 'success' | 'warning' | 'error' = 'success') => {
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedSound = localStorage.getItem('ue_admin_sound');
+      if (savedSound === 'true') {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSoundEnabled(true);
+      }
+    }
+  }, []);
+
+  const toggleSound = () => {
+    const newState = !soundEnabled;
+    setSoundEnabled(newState);
+    localStorage.setItem('ue_admin_sound', String(newState));
+    if (newState) new Audio('').play().catch(() => {});
+  };
+
+  const playNotificationSound = useCallback(() => {
+    if (!soundEnabled) return;
+    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+    audio.volume = 0.8;
+    audio.play().catch((e) => console.log("Audio bloqué:", e));
+  }, [soundEnabled]);
+
+  const notify = useCallback((message: string, type: 'success' | 'warning' | 'error' = 'success') => {
     const id = Date.now()
     setToasts(prev => [...prev, { id, message, type }])
+    playNotificationSound();
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000)
-  }
+  }, [playNotificationSound]);
 
   const getElapsedMinutes = (createdAt: string) => {
     if (now === 0) return 0
@@ -63,294 +66,227 @@ export default function LiveDashboard() {
     return Math.floor((now - start) / 60000)
   }
 
-  const getTimeStyles = (createdAt: string) => {
-    const min = getElapsedMinutes(createdAt)
-    if (min < 15) return 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10'
-    if (min < 30) return 'text-orange-400 border-orange-500/30 bg-orange-500/10'
-    return 'text-red-500 border-red-500/50 bg-red-500/20 animate-pulse'
-  }
-
   const calculateStats = (currentOrders: Order[]) => {
-    const pending = currentOrders.filter(o => o.status === 'pending').length
-    const cooking = currentOrders.filter(o => o.status === 'cooking').length
+    const pending = currentOrders.filter(o => o.status === 'pending' || o.status === 'confirmed').length
+    const cooking = currentOrders.filter(o => o.status === 'preparing').length
     const revenue = currentOrders.reduce((acc, curr) => acc + curr.total_amount, 0)
     setStats({ pending, cooking, revenue }) 
   }
 
-  const fetchItemsForOrder = async (orderId: string) => {
-    const { data } = await supabase
-      .from('order_items')
-      .select('product_name, quantity, options')
-      .eq('order_id', orderId)
-    return (data as OrderItem[]) || []
-  }
-
-  const handleOpenMap = (location: string) => {
-    if (!location) return;
-    const matches = location.match(/POINT\(([^ ]+) ([^ ]+)\)/);
-    if (matches && matches.length >= 3) {
-      const lng = matches[1];
-      const lat = matches[2];
-      const url = `https://www.google.com/maps?q=${lat},${lng}`;
-      window.open(url, '_blank');
-    } else {
-      alert("Coordonnées GPS invalides.");
+  const fetchFullOrder = async (orderId: string): Promise<Order | null> => {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('id', orderId)
+      .single();
+    
+    if (error) {
+      console.error('Erreur fetchFullOrder', error);
+      return null;
     }
-  }
+    return data as unknown as Order;
+  };
 
   useEffect(() => {
-    // Initialisation asynchrone pour éviter l'erreur "setState synchronously"
-    const initTimer = setTimeout(() => setNow(Date.now()), 0);
-
-    if (typeof window !== 'undefined') {
-      audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3')
-    }
-
-    const timer = setInterval(() => setNow(Date.now()), 30000)
+    const updateTimer = () => setNow(Date.now())
+    const timerInterval = setInterval(updateTimer, 60000)
+    requestAnimationFrame(updateTimer)
 
     const fetchInitialData = async () => {
-      const { data: ordersData, error } = await supabase
-        .from('orders')
-        .select('*')
-        .not('status', 'in', '("cancelled","completed")')
-        .order('created_at', { ascending: true })
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*, order_items(*)')
+          .neq('status', 'cancelled')
+          .neq('status', 'delivered')
+          .order('created_at', { ascending: true })
 
-      if (!error && ordersData) {
-        const { data: itemsData } = await supabase
-          .from('order_items')
-          .select('order_id, product_name, quantity, options')
-          .in('order_id', ordersData.map(o => o.id))
-
-        const enrichedOrders = ordersData.map(order => ({
-          ...order,
-          items: itemsData?.filter(item => item.order_id === order.id) || []
-        }))
-
-        setOrders(enrichedOrders as Order[])
-        calculateStats(enrichedOrders as Order[])
-      }
-      setLoading(false)
+        if (!error && data) {
+            // CORRECTION : suppression du @ts-expect-error car le cast est maintenant valide
+            const typedData = data as unknown as Order[];
+            setOrders(typedData)
+            calculateStats(typedData)
+        }
+        setLoading(false)
     }
 
     fetchInitialData()
 
     const channel = supabase
-      .channel('live-dashboard-fix')
-      .on(
-        'postgres_changes' as any, 
-        { event: 'INSERT', schema: 'public', table: 'orders' }, 
-        async (payload: RealtimePostgresChangesPayload<Order>) => {
-          const newOrder = payload.new as Order
-          audioRef.current?.play().catch(() => {})
-          notify(`Nouvelle Commande: #${newOrder.order_number}`, 'success')
+      .channel('live-dashboard')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, async (payload) => {
+          const newOrderPartial = payload.new as Order;
+          notify(`Nouvelle commande #${newOrderPartial.order_number} !`, 'success');
           
-          const items = await fetchItemsForOrder(newOrder.id)
-          const enrichedOrder = { ...newOrder, items }
-          
-          setOrders(prev => {
-              const updated = [...prev, enrichedOrder].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-              calculateStats(updated)
-              return updated
-          })
+          setTimeout(async () => {
+             const fullOrder = await fetchFullOrder(newOrderPartial.id);
+             if (fullOrder) {
+                setOrders(prev => {
+                    const updated = [...prev, fullOrder].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                    calculateStats(updated);
+                    return updated;
+                });
+             }
+          }, 1000); 
       })
-      .on(
-        'postgres_changes' as any, 
-        { event: 'UPDATE', schema: 'public', table: 'orders' }, 
-        (payload: RealtimePostgresChangesPayload<Order>) => {
-            const updatedOrder = payload.new as Order
-            if (['completed', 'cancelled'].includes(updatedOrder.status)) {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, async (payload) => {
+            const updatedOrderPartial = payload.new as Order;
+            
+            if (updatedOrderPartial.status === 'delivered' || updatedOrderPartial.status === 'cancelled') {
                 setOrders(prev => {
-                    const updated = prev.filter(o => o.id !== updatedOrder.id)
+                    const updated = prev.filter(o => o.id !== updatedOrderPartial.id)
                     calculateStats(updated)
                     return updated
                 })
-                if (selectedOrder?.id === updatedOrder.id) setSelectedOrder(null)
+                if (selectedOrder?.id === updatedOrderPartial.id) {
+                    setSelectedOrder(null)
+                    setShowLocationModal(false)
+                }
             } else {
-                setOrders(prev => {
-                    const updated = prev.map(o => o.id === updatedOrder.id ? { ...updatedOrder, items: o.items } : o)
-                    calculateStats(updated)
-                    return updated
-                })
+                const fullOrder = await fetchFullOrder(updatedOrderPartial.id);
+                if (fullOrder) {
+                    setOrders(prev => {
+                        const updated = prev.map(o => o.id === fullOrder.id ? fullOrder : o);
+                        calculateStats(updated);
+                        return updated;
+                    });
+                }
             }
       })
       .subscribe()
 
-    return () => {
-      supabase.removeChannel(channel)
-      clearInterval(timer)
-      clearTimeout(initTimer)
-    }
-  }, [selectedOrder])
+    return () => { supabase.removeChannel(channel); clearInterval(timerInterval) }
+  }, [selectedOrder, notify]) 
 
-  const updateStatus = async (orderId: string, newStatus: string) => {
-    if (['completed', 'cancelled'].includes(newStatus)) {
-        setOrders(prev => {
-          const remaining = prev.filter(o => o.id !== orderId)
-          calculateStats(remaining)
-          return remaining
-        })
+  const handleCardClick = (order: Order) => {
+    setSelectedOrder(order)
+    setShowLocationModal(false) 
+  }
+
+  const updateStatus = async (orderId: string, newStatus: Order['status']) => {
+    if (newStatus === 'delivered' || newStatus === 'cancelled') {
+        const remainingOrders = orders.filter(o => o.id !== orderId)
+        setOrders(remainingOrders)
+        calculateStats(remainingOrders)
         setSelectedOrder(null)
+        setShowLocationModal(false)
+        
+        if(newStatus === 'delivered') notify("Commande Livrée -> Historique 📂", 'success')
+        if(newStatus === 'cancelled') notify("Commande Annulée -> Historique 📂", 'warning')
     } else {
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } as Order : o))
+        const updatedOrders = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o)
+        setOrders(updatedOrders)
+        calculateStats(updatedOrders)
+        if (selectedOrder?.id === orderId) setSelectedOrder({ ...selectedOrder, status: newStatus } as Order)
+        
+        if(newStatus === 'preparing') notify("Envoyé en cuisine 🔥", 'success')
+        if(newStatus === 'ready') notify("Commande prête ✅", 'success')
+        if(newStatus === 'out_for_delivery') notify("Départ Livreur 🛵", 'success')
     }
+
+    // CORRECTION : Ajout de la description pour l'erreur attendue
+    // @ts-expect-error: Supabase type definition mismatch for update object
     await supabase.from('orders').update({ status: newStatus }).eq('id', orderId)
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white overflow-hidden relative font-sans">
-      <div className="fixed inset-0 pointer-events-none opacity-20">
-        <div className="absolute top-[-5%] left-[10%] w-[40%] h-[40%] bg-cyan-600 blur-[150px]"></div>
-        <div className="absolute bottom-[-5%] right-[10%] w-[30%] h-[30%] bg-purple-600 blur-[120px]"></div>
-      </div>
-
-      <div className="relative z-10 max-w-[1920px] mx-auto p-4 flex flex-col h-screen">
-        <header className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-2.5 h-2.5 bg-cyan-500 rounded-full animate-ping shadow-[0_0_10px_#06b6d4]"></div>
-            <h1 className="text-2xl font-black tracking-tighter text-white/90 uppercase italic">KITCHEN OPS CENTER</h1>
-          </div>
-          <div className="flex gap-4">
-            {[
-              { label: 'Attente', val: stats.pending, col: 'text-cyan-400', icon: Bell },
-              { label: 'En Cuisine', val: stats.cooking, col: 'text-orange-400', icon: ChefHat },
-              { label: 'Flux CA', val: `${stats.revenue} DH`, col: 'text-green-400', icon: Activity }
-            ].map((s, i) => (
-              <div key={i} className="bg-white/5 border border-white/10 p-2.5 px-4 rounded-2xl flex items-center gap-4">
-                <s.icon size={18} className={s.col}/>
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.2em] opacity-30">{s.label}</div>
-                  <div className="text-lg font-black">{s.val}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </header>
-
-        <main className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
-          {loading && orders.length === 0 ? (
-             <div className="h-full flex flex-col items-center justify-center text-white/20">
-                <Loader2 size={48} className="animate-spin mb-4"/>
-                <p className="font-black uppercase tracking-widest">Synchronisation...</p>
-             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-              {orders.map(order => (
-                <div key={order.id} className={`bg-white/5 border border-white/10 rounded-[2.5rem] flex flex-col transition-all overflow-hidden shadow-2xl ${order.status === 'pending' ? 'border-cyan-500/40 ring-1 ring-cyan-500/20' : ''}`}>
-                  
-                  <div className="p-5 bg-white/[0.03] border-b border-white/10 flex justify-between items-start">
-                    <div>
-                      <span className="text-4xl font-black tracking-tighter text-white">#{order.order_number}</span>
-                      <p className="text-xs font-black uppercase text-white/40 tracking-widest mt-1.5">{order.customer_name || 'GUEST'}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <div className={`px-3 py-1.5 rounded-xl border text-[11px] font-black ${getTimeStyles(order.created_at)}`}>
-                        {getElapsedMinutes(order.created_at)} MIN
-                      </div>
-                      {order.location && (
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); handleOpenMap(order.location!); }} 
-                          className="bg-cyan-500/20 text-cyan-400 p-2 rounded-lg border border-cyan-500/30 hover:bg-cyan-500 hover:text-black transition-all group"
-                          title="Ouvrir GPS"
-                        >
-                          <MapIcon size={16} className="group-hover:scale-110 transition-transform"/>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex-1 p-5 bg-black/40 overflow-y-auto max-h-[450px] space-y-4">
-                    {order.items?.map((item, idx) => (
-                      <div key={idx} className="bg-white/5 border border-white/10 p-4 rounded-3xl flex gap-5 items-start border-l-4 border-l-cyan-500">
-                        <div className="bg-cyan-500 text-black w-10 h-10 rounded-2xl flex items-center justify-center font-black text-xl shrink-0">{item.quantity}</div>
-                        <div className="flex-1">
-                          <p className="font-black text-white text-lg uppercase tracking-tight leading-none mb-3 underline decoration-cyan-500/30">{item.product_name}</p>
-                          {item.options && item.options.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                              {item.options.map((opt, i) => (
-                                <span key={i} className="text-[12px] font-black uppercase bg-yellow-400 text-black px-3 py-1.5 rounded-xl shadow-lg border border-yellow-500 transform hover:scale-105 transition-transform">
-                                  {opt}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="p-5 bg-white/[0.03] border-t border-white/5 space-y-4">
-                    <div className="flex justify-between items-center px-2 font-black uppercase text-[10px] tracking-[0.2em] text-white/20">
-                      <span className="flex items-center gap-2"><Activity size={10} className="text-cyan-500"/> {order.order_type}</span>
-                      <span className="text-cyan-400 text-sm italic">{order.total_amount} DH</span>
-                    </div>
+    <div className="min-h-screen bg-slate-50 relative overflow-hidden font-sans text-slate-800">
+        
+        {/* Toasts - Position changée : CENTRE HAUT */}
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 items-center pointer-events-none w-full max-w-md">
+            {toasts.map(t => (
+                <div 
+                    key={t.id} 
+                    className="pointer-events-auto animate-in slide-in-from-top-4 fade-in duration-300 bg-slate-900 text-white shadow-2xl px-6 py-3 rounded-full flex items-center gap-3 min-w-[300px] justify-center border border-slate-700" 
+                >
+                    {/* Icônes simplifiées et colorées pour ressortir sur fond noir */}
+                    {t.type === 'success' ? <CheckCircle2 size={20} className="text-green-400 shrink-0"/> : 
+                     t.type === 'warning' ? <Bell size={20} className="text-yellow-400 shrink-0"/> : 
+                     <AlertCircle size={20} className="text-red-400 shrink-0"/>}
                     
-                    <div className="grid grid-cols-5 gap-2">
-                      <button 
-                        onClick={() => setSelectedOrder(order)} 
-                        className="col-span-1 p-3 bg-white/5 hover:bg-white/10 rounded-2xl flex items-center justify-center border border-white/10"
-                      >
-                        <Navigation size={20} className="text-cyan-400/60"/>
-                      </button>
-
-                      {order.status === 'pending' && (
-                        <button onClick={() => updateStatus(order.id, 'cooking')} className="col-span-4 bg-white text-black py-4 rounded-2xl font-black text-xs hover:scale-[1.02] active:scale-95 transition-all shadow-xl">START PREP</button>
-                      )}
-                      {order.status === 'cooking' && (
-                        <button onClick={() => updateStatus(order.id, 'ready')} className="col-span-4 bg-cyan-500 text-black py-4 rounded-2xl font-black text-xs hover:scale-[1.02] active:scale-95 transition-all">READY</button>
-                      )}
-                      {order.status === 'ready' && (
-                        <button onClick={() => updateStatus(order.id, 'completed')} className="col-span-4 bg-green-500 text-black py-4 rounded-2xl font-black text-xs hover:scale-[1.02] active:scale-95 transition-all">FINISH</button>
-                      )}
-                    </div>
-                  </div>
+                    <span className="font-bold text-sm tracking-wide">{t.message}</span>
                 </div>
-              ))}
-            </div>
-          )}
-        </main>
-      </div>
-
-      {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/90 backdrop-blur-xl p-4">
-          <div className="bg-[#0c0c0c] w-full max-w-4xl h-full border border-white/10 rounded-[3rem] flex flex-col shadow-2xl animate-in slide-in-from-right duration-500 overflow-hidden">
-            <div className="p-8 bg-white/[0.03] border-b border-white/10 flex items-center justify-between">
-              <div className="flex items-center gap-10">
-                <span className="text-6xl font-black tracking-tighter text-cyan-500">#{selectedOrder.order_number}</span>
-                <div>
-                  <span className="text-3xl font-black text-white uppercase block leading-none mb-2">{selectedOrder.customer_name || 'GUEST'}</span>
-                  <span className="text-xl font-mono text-white/30 tracking-widest">{selectedOrder.customer_phone}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                {selectedOrder.location && (
-                  <button onClick={() => handleOpenMap(selectedOrder.location!)} className="bg-cyan-500 text-black px-8 py-4 rounded-2xl flex items-center gap-3 font-black text-sm shadow-xl hover:scale-105 transition-all">
-                    <Navigation size={22}/> NAVIGATE
-                  </button>
-                )}
-                <button onClick={() => setSelectedOrder(null)} className="p-5 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10"><X size={32} className="text-white/20"/></button>
-              </div>
-            </div>
-            <div className="flex-1 p-10 bg-black overflow-y-auto">
-               <div className="p-8 bg-white/5 rounded-[2.5rem] border border-white/10 mb-10 text-center">
-                  <p className="text-xs font-black text-white/20 uppercase tracking-[0.5em] mb-6">Delivery Destination</p>
-                  <p className="text-3xl font-black text-center text-cyan-400">{selectedOrder.delivery_address || 'PICKUP / DINE-IN'}</p>
-               </div>
-               <button onClick={() => { if(confirm('Annuler ?')) updateStatus(selectedOrder.id, 'cancelled') }} className="w-full py-6 rounded-3xl text-sm font-black text-red-500/40 hover:text-red-500 border border-red-500/20 hover:bg-red-500/5 transition-all uppercase tracking-[0.5em]">CANCEL ORDER</button>
-            </div>
-          </div>
+            ))}
         </div>
-      )}
 
-      <div className="fixed top-6 right-6 z-[100] flex flex-col gap-3">
-        {toasts.map(t => (
-          <div key={t.id} className="bg-white/10 backdrop-blur-3xl border border-white/20 p-5 rounded-[2rem] shadow-2xl flex items-center gap-5 min-w-[380px] animate-in slide-in-from-right duration-500">
-            <div className={`p-3 rounded-2xl ${t.type === 'success' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-orange-500/20 text-orange-400'}`}>
-              {t.type === 'success' ? <CheckCircle2 size={24}/> : <AlertCircle size={24}/>}
+        <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
+            <div className="max-w-[1920px] mx-auto p-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="flex items-center gap-3">
+                    <Receipt size={28} className="text-slate-900" />
+                    <div>
+                        <h1 className="text-2xl font-black text-slate-900 tracking-tight">KITCHEN DISPLAY</h1>
+                        <p className="text-slate-500 text-xs font-bold uppercase tracking-wide">Live Feed • Agadir</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <button 
+                      onClick={toggleSound}
+                      className={`p-2 rounded-full border transition-all ${soundEnabled ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}
+                      title={soundEnabled ? "Son Activé" : "Son Désactivé (Cliquez pour activer)"}
+                    >
+                      {soundEnabled ? <Volume2 size={20}/> : <VolumeX size={20}/>}
+                    </button>
+
+                    <div className="bg-white border border-slate-200 shadow-sm rounded-xl px-4 py-2 flex items-center gap-3 min-w-[140px]">
+                        <div className="bg-yellow-100 p-2 rounded-lg text-yellow-700"><Bell size={18}/></div>
+                        <div><div className="text-xs text-slate-400 font-bold uppercase">Attente</div><div className="text-xl font-black">{stats.pending}</div></div>
+                    </div>
+                    <div className="bg-white border border-slate-200 shadow-sm rounded-xl px-4 py-2 flex items-center gap-3 min-w-[140px]">
+                        <div className="bg-orange-100 p-2 rounded-lg text-orange-700"><ChefHat size={18}/></div>
+                        <div><div className="text-xs text-slate-400 font-bold uppercase">Cuisine</div><div className="text-xl font-black">{stats.cooking}</div></div>
+                    </div>
+                    <div className="bg-slate-900 text-white shadow-lg rounded-xl px-5 py-2 flex items-center gap-3 min-w-[160px]">
+                         <div className="text-right w-full">
+                            <div className="text-xs text-slate-400 font-bold uppercase">Revenu</div>
+                            <div className="text-xl font-black">{stats.revenue} <span className="text-xs font-normal">DH</span></div>
+                         </div>
+                    </div>
+                </div>
             </div>
-            <span className="font-black uppercase tracking-widest text-[11px] leading-tight">{t.message}</span>
-          </div>
-        ))}
-      </div>
+        </div>
+
+        <div className="max-w-[1920px] mx-auto p-4 md:p-6 min-h-[calc(100vh-100px)]">
+            {loading ? (
+                <div className="flex justify-center pt-20"><Loader2 size={48} className="animate-spin text-blue-500" /></div>
+            ) : orders.length === 0 ? (
+                <div className="flex flex-col items-center justify-center pt-32 text-slate-300">
+                    <Utensils size={80} className="mb-4 opacity-50"/>
+                    <p className="text-xl font-bold">Aucune commande active</p>
+                    <p className="text-sm mt-2">En attente de commandes...</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 pb-20">
+                    {orders.map(order => (
+                        <OrderCard 
+                            key={order.id}
+                            order={order}
+                            elapsedMinutes={getElapsedMinutes(order.created_at)}
+                            onClick={() => handleCardClick(order)}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
+
+        {selectedOrder && !showLocationModal && (
+            <OrderDetailsModal 
+                order={selectedOrder}
+                items={selectedOrder.order_items || []} 
+                loadingItems={false} 
+                elapsedMinutes={getElapsedMinutes(selectedOrder.created_at)}
+                onClose={() => setSelectedOrder(null)}
+                onUpdateStatus={updateStatus}
+                onOpenMap={() => setShowLocationModal(true)}
+            />
+        )}
+
+        {selectedOrder && showLocationModal && (
+            <LocationModal 
+                order={selectedOrder}
+                onClose={() => setShowLocationModal(false)}
+            />
+        )}
+
     </div>
   )
 }
