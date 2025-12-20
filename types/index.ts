@@ -1,10 +1,15 @@
-// types/index.ts
+import { Database } from './database.types';
+
+// On récupère les types de base générés (si disponibles) ou on définit manuellement
+// Pour faire simple et robuste ici :
 
 export interface OrderItem { 
-  id?: string; // Optionnel selon votre DB
+  id?: string; 
   product_name: string; 
   quantity: number; 
-  options: string[] | null; // Peut être null
+  price: number; // Important pour le total
+  // LE FIX EST ICI : On accepte 'any' pour gérer l'ancien (Tableau) et le nouveau format (Objet)
+  options: any; 
 }
 
 export interface Order {
@@ -13,14 +18,17 @@ export interface Order {
   customer_name: string | null; 
   customer_phone: string | null;
   delivery_address: string | null; 
-  order_type: 'dine_in' | 'takeaway' | 'delivery';
+  order_type: string; // 'dine_in' | 'takeaway' | 'delivery'
   total_amount: number; 
   created_at: string; 
   status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled';
   
-  // NOUVEAU : La liste des articles est maintenant attachée à la commande
+  // Relations
   order_items: OrderItem[]; 
   
+  // Champs calculés ou optionnels
   latitude?: number | null;
   longitude?: number | null;
+  payment_method?: string;
+  payment_status?: string;
 }

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider"
-import { Sidebar } from "@/components/sidebar"; // Import de notre Sidebar
+import { ThemeProvider } from "@/components/theme-provider";
+import AuthGuard from "@/components/AuthGuard"; // 👇 Import du Gardien
+import LayoutShell from "@/components/LayoutShell"; // 👇 Import de la Coquille
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -24,23 +25,20 @@ export default function RootLayout({
       >
         <ThemeProvider
             attribute="class"
-            defaultTheme="light" // On force le light pour l'instant pour la lisibilité
+            defaultTheme="light" 
             enableSystem={false}
             disableTransitionOnChange
           >
-          
-          {/* LAYOUT PRINCIPAL : SIDEBAR + CONTENU */}
-          <div className="flex min-h-screen">
             
-            {/* 1. LA TOUR DE CONTRÔLE (Fixe à gauche) */}
-            <Sidebar />
+            {/* 👇 1. SÉCURITÉ : On enveloppe tout dans le Gardien */}
+            <AuthGuard>
+              
+              {/* 👇 2. STRUCTURE : On utilise notre coquille intelligente */}
+              <LayoutShell>
+                  {children}
+              </LayoutShell>
 
-            {/* 2. LE CONTENU VARIABLE (Décalé de la largeur de la sidebar) */}
-            <main className="flex-1 ml-64 min-h-screen bg-gray-50/50">
-                {children}
-            </main>
-
-          </div>
+            </AuthGuard>
 
         </ThemeProvider>
       </body>

@@ -1,371 +1,284 @@
-'use client'
-
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
-import { 
-  Save, Truck, Power, Palette, Image as ImageIcon, 
-  Loader2, UploadCloud, CheckCircle2, AlertCircle, Store, Type, FileText
-} from 'lucide-react'
-import Image from 'next/image'
-
-// --- TYPES ---
-interface StoreConfig {
-  id: string;
-  name: string;
-  description: string | null;
-  delivery_fees: number;
-  is_open: boolean;
-  primary_color: string;
-  secondary_color: string;
-  logo_url: string | null;
-}
-
-interface Toast { id: number; message: string; type: 'success' | 'error'; }
+'use client';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import { Save, Loader2, Upload, Palette, Image as ImageIcon } from 'lucide-react';
+import Image from 'next/image';
 
 export default function SettingsPage() {
-  // Data
-  const [store, setStore] = useState<StoreConfig | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false) 
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  // Form States
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [deliveryFee, setDeliveryFee] = useState('')
-  const [isOpen, setIsOpen] = useState(true)
-  const [primaryColor, setPrimaryColor] = useState('#FFC107')
-  const [secondaryColor, setSecondaryColor] = useState('#000000')
-  const [logoUrl, setLogoUrl] = useState('')
+  // Données de la marque
+  const [brandId, setBrandId] = useState<string | null>(null);
+  const [settings, setSettings] = useState({
+    name: '',
+    primary_color: '#000000',
+    secondary_color: '#ffffff',
+    logo_url: ''
+  });
 
-  // UI States
-  const [toasts, setToasts] = useState<Toast[]>([])
-
-  // --- NOTIFICATION SYSTEM ---
-  const notify = (message: string, type: 'success' | 'error' = 'success') => {
-    const id = Date.now()
-    setToasts(prev => [...prev, { id, message, type }])
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
-  }
-
-  // --- CHARGEMENT ---
   useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const { data, error } = await supabase.from('stores').select('*').limit(1).single()
-        
-        if (data) {
-          setStore(data)
-          setName(data.name || '')
-          setDescription(data.description || '')
-          setDeliveryFee(data.delivery_fees?.toString() || '0')
-          setIsOpen(data.is_open)
-          setPrimaryColor(data.primary_color || '#FFC107')
-          setSecondaryColor(data.secondary_color || '#000000')
-          setLogoUrl(data.logo_url || '')
-        }
-      } catch (error) {
-        console.log("Aucun restaurant trouvé, prêt pour la création.")
-      } finally {
-        setLoading(false)
+    fetchBrandSettings();
+  }, []);
+
+  const fetchBrandSettings = async () => {
+    try {
+      // On récupère la marque principale
+      const { data: brand, error } = await supabase
+        .from('brands')
+        .select('*')
+        .limit(1)
+        .single();
+
+      if (brand) {
+        setBrandId(brand.id);
+        // On remplit le formulaire. Si la config JSON existe, on l'utilise, sinon valeurs par défaut
+        const theme = brand.theme_config || {};
+        setSettings({
+          name: brand.name,
+          primary_color: theme.primaryColor || '#000000',
+          secondary_color: theme.secondaryColor || '#ffffff',
+          logo_url: brand.logo_url || ''
+        });
       }
+    } catch (err) {
+      console.error("Erreur chargement settings:", err);
+    } finally {
+      setLoading(false);
     }
-    fetchSettings()
-  }, [])
+  };
 
-  // --- ACTIONS ---
-
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Gestion de l'upload d'image (Logo)
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
+    
     setUploading(true);
     const file = e.target.files[0];
+    const fileExt = file.name.split('.').pop();
+    const fileName = `brand-logo-${Date.now()}.${fileExt}`;
+    const filePath = `images/${fileName}`;
 
     try {
-        // Optimisation de l'image (optionnel mais recommandé)
-        const imageBitmap = await createImageBitmap(file);
-        const canvas = document.createElement('canvas');
-        canvas.width = imageBitmap.width;
-        canvas.height = imageBitmap.height;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(imageBitmap, 0, 0);
-        
-        const blob = await new Promise<Blob | null>(resolve => 
-            canvas.toBlob(resolve, 'image/webp', 0.8)
-        );
+      // 1. Upload vers Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('images') // Assure-toi d'avoir un bucket nommé "images" public
+        .upload(filePath, file);
 
-        if (!blob) throw new Error("Erreur de conversion");
+      if (uploadError) throw uploadError;
 
-        const fileName = `logo-${Date.now()}.webp`;
-        const { error: uploadError } = await supabase.storage
-            .from('images')
-            .upload(fileName, blob, { contentType: 'image/webp', upsert: true });
+      // 2. Récupérer l'URL publique
+      const { data } = supabase.storage.from('images').getPublicUrl(filePath);
+      
+      setSettings(prev => ({ ...prev, logo_url: data.publicUrl }));
 
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-            .from('images')
-            .getPublicUrl(fileName);
-
-        setLogoUrl(publicUrl);
-        notify("Logo mis à jour (N'oubliez pas d'enregistrer)", "success")
     } catch (error) {
-        console.error(error);
-        notify("Erreur lors de l'upload", "error");
+      alert("Erreur lors de l'upload de l'image. Vérifiez que le bucket 'images' existe et est public.");
+      console.error(error);
     } finally {
-        setUploading(false);
+      setUploading(false);
     }
-  }
+  };
 
-  const handleSave = async () => {
-    setSaving(true)
-    
-    // Conversion sécurisée du prix (évite les erreurs NaN)
-    const fees = parseFloat(deliveryFee.replace(',', '.')) || 0;
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!brandId) return;
+    setSaving(true);
 
-    const storeData = {
-        name: name,
-        description: description,
-        delivery_fees: fees,
-        is_open: isOpen,
-        primary_color: primaryColor,
-        secondary_color: secondaryColor,
-        logo_url: logoUrl
+    try {
+      // ÉTAPE 1 : Mettre à jour la table BRANDS (La source de vérité)
+      const themeConfig = {
+        primaryColor: settings.primary_color,
+        secondaryColor: settings.secondary_color,
+        borderRadius: '12px' // On peut ajouter d'autres configs globales ici
+      };
+
+      const { error: brandError } = await supabase
+        .from('brands')
+        .update({
+          name: settings.name,
+          logo_url: settings.logo_url,
+          theme_config: themeConfig
+        })
+        .eq('id', brandId);
+
+      if (brandError) throw brandError;
+
+      // ÉTAPE 2 : PROPAGATION (La partie magique)
+      // On met à jour TOUS les magasins liés à cette marque pour qu'ils aient les mêmes couleurs/logo
+      // C'est ce qui permet de tout changer d'un coup.
+      const { error: storesError } = await supabase
+        .from('stores')
+        .update({
+          primary_color: settings.primary_color,
+          secondary_color: settings.secondary_color,
+          logo_url: settings.logo_url
+        })
+        .eq('brand_id', brandId);
+
+      if (storesError) throw storesError;
+
+      alert("Paramètres globaux mis à jour et appliqués à tous les points de vente !");
+
+    } catch (error) {
+      console.error(error);
+      alert("Erreur lors de la sauvegarde.");
+    } finally {
+      setSaving(false);
     }
+  };
 
-    let error = null;
-
-    if (store?.id) {
-        // SCÉNARIO 1 : MISE À JOUR (UPDATE)
-        const { error: updateError } = await supabase
-            .from('stores')
-            .update(storeData)
-            .eq('id', store.id)
-        error = updateError;
-    } else {
-        // SCÉNARIO 2 : CRÉATION (INSERT) - Si c'est la première fois
-        const { data: newStore, error: insertError } = await supabase
-            .from('stores')
-            .insert([storeData])
-            .select()
-            .single()
-        
-        if (newStore) setStore(newStore)
-        error = insertError;
-    }
-
-    if (!error) notify("Paramètres du restaurant mis à jour ! 🚀", "success")
-    else {
-        console.error(error)
-        notify("Erreur: " + error.message, "error")
-    }
-    
-    setSaving(false)
-  }
-
-  if (loading) return <div className="min-h-screen flex justify-center items-center bg-[#F2F2F7]"><Loader2 className="animate-spin text-gray-400" size={40}/></div>
+  if (loading) return <div className="p-20 text-center text-gray-500">Chargement des paramètres...</div>;
 
   return (
-    <div className="min-h-screen bg-[#F2F2F7] relative overflow-hidden font-sans text-slate-800 p-4 md:p-8 pb-32">
-      
-      {/* Background Ambience */}
-      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-purple-200/40 rounded-full blur-[120px] pointer-events-none mix-blend-multiply"></div>
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-200/40 rounded-full blur-[120px] pointer-events-none mix-blend-multiply"></div>
+    <div className="max-w-4xl mx-auto p-8">
+      <h1 className="text-3xl font-bold mb-2">Paramètres de la Marque</h1>
+      <p className="text-gray-500 mb-8">Ces modifications affecteront l'ensemble de votre écosystème (Application & Stores).</p>
 
-      {/* TOASTS */}
-      <div className="fixed top-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none">
-        {toasts.map(toast => (
-            <div key={toast.id} className="pointer-events-auto animate-in slide-in-from-right fade-in duration-300 bg-white/80 backdrop-blur-xl border border-white/40 shadow-xl p-4 rounded-2xl flex items-center gap-3 min-w-[300px]">
-                {toast.type === 'success' ? <CheckCircle2 className="text-green-500" size={24} /> : <AlertCircle className="text-red-500" size={24} />}
+      <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        
+        {/* COLONNE GAUCHE : IDENTITÉ VISUELLE */}
+        <div className="md:col-span-2 space-y-6">
+          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <ImageIcon size={20} /> Identité
+            </h2>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Nom de la Marque</label>
+              <input 
+                type="text" 
+                value={settings.name}
+                onChange={e => setSettings({...settings, name: e.target.value})}
+                className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-black focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Logo Global</label>
+              <div className="flex items-center gap-6">
+                <div className="w-24 h-24 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden relative">
+                  {settings.logo_url ? (
+                    <Image 
+                        src={settings.logo_url} 
+                        alt="Logo" 
+                        fill 
+                        className="object-contain p-2"
+                        // Autoriser les domaines externes dans next.config.js si nécessaire
+                    />
+                  ) : (
+                    <span className="text-gray-400 text-xs">Aucun</span>
+                  )}
+                  {uploading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><Loader2 className="animate-spin text-white"/></div>}
+                </div>
                 <div>
-                    <p className="font-bold text-sm">{toast.type === 'success' ? 'Succès' : 'Erreur'}</p>
-                    <p className="text-xs text-gray-500">{toast.message}</p>
+                    <label className="cursor-pointer bg-black text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition flex items-center gap-2">
+                        <Upload size={16} /> Changer le logo
+                        <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                    </label>
+                    <p className="text-xs text-gray-400 mt-2">Recommandé : PNG transparent, 512x512px</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <Palette size={20} /> Thème & Couleurs
+            </h2>
+            
+            <div className="grid grid-cols-2 gap-6">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Couleur Principale</label>
+                    <div className="flex items-center gap-3">
+                        <input 
+                            type="color" 
+                            value={settings.primary_color}
+                            onChange={e => setSettings({...settings, primary_color: e.target.value})}
+                            className="h-12 w-12 rounded-lg cursor-pointer border-0 bg-transparent p-0"
+                        />
+                        <span className="text-sm font-mono bg-gray-50 px-2 py-1 rounded">{settings.primary_color}</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Boutons, icônes, en-têtes.</p>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Couleur Secondaire</label>
+                    <div className="flex items-center gap-3">
+                        <input 
+                            type="color" 
+                            value={settings.secondary_color}
+                            onChange={e => setSettings({...settings, secondary_color: e.target.value})}
+                            className="h-12 w-12 rounded-lg cursor-pointer border-0 bg-transparent p-0"
+                        />
+                         <span className="text-sm font-mono bg-gray-50 px-2 py-1 rounded">{settings.secondary_color}</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Fond des cartes, textes inversés.</p>
                 </div>
             </div>
-        ))}
-      </div>
+          </div>
 
-      <div className="relative z-10 max-w-5xl mx-auto space-y-8">
-        
-        {/* HEADER */}
-        <div className="flex justify-between items-center">
-            <div>
-                <h1 className="text-4xl font-black text-gray-900 tracking-tight">Configuration</h1>
-                <p className="text-gray-500 font-medium mt-1">Identité, couleurs et fonctionnement du restaurant.</p>
-            </div>
-            
-            <button 
-                onClick={handleSave} 
-                disabled={saving || uploading} 
-                className="bg-black text-white px-8 py-4 rounded-2xl font-bold text-lg shadow-lg hover:bg-gray-900 hover:scale-[1.02] transition-all flex items-center gap-3 disabled:opacity-50"
-            >
-                {saving ? <Loader2 className="animate-spin"/> : <Save size={20}/>} Enregistrer Tout
-            </button>
+          <button 
+            type="submit" 
+            disabled={saving}
+            className="w-full bg-black text-white py-4 rounded-xl font-bold text-lg hover:bg-gray-800 transition flex items-center justify-center gap-2 shadow-lg"
+          >
+            {saving ? <Loader2 className="animate-spin" /> : <Save size={20} />}
+            Appliquer à tout l'écosystème
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* COLONNE GAUCHE : IDENTITÉ & LOGO */}
-            <div className="lg:col-span-1 space-y-6">
-                 
-                 {/* CARTE LOGO */}
-                 <div className="bg-white/70 backdrop-blur-2xl border border-white/50 shadow-xl rounded-[32px] p-6 text-center">
-                    <div className="relative w-40 h-40 mx-auto bg-gray-50 rounded-full border-4 border-white shadow-inner flex items-center justify-center overflow-hidden mb-6 group">
-                        {uploading ? (
-                            <Loader2 className="animate-spin text-gray-400" size={40}/>
-                        ) : logoUrl ? (
-                            <Image src={logoUrl} fill className="object-contain p-4" alt="Logo"/>
-                        ) : (
-                            <ImageIcon className="text-gray-300" size={40}/>
-                        )}
-                        
-                        {/* Overlay Upload */}
-                        <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer text-white font-bold backdrop-blur-sm">
-                            <UploadCloud size={24} className="mb-2"/>
-                            Modifier
-                            <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} disabled={uploading} />
-                        </label>
-                    </div>
+        {/* COLONNE DROITE : APERÇU MOBILE */}
+        <div className="md:col-span-1">
+            <div className="sticky top-8">
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Aperçu Mobile</h3>
+                {/* Simulation d'un téléphone */}
+                <div className="border-[10px] border-gray-900 rounded-[3rem] overflow-hidden bg-gray-100 shadow-2xl h-[600px] relative">
+                    {/* Notch */}
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-gray-900 rounded-b-xl z-20"></div>
                     
-                    <h3 className="font-bold text-lg text-gray-800">Logo Officiel</h3>
-                    <p className="text-xs text-gray-400 mt-1">Format carré recommandé. Auto-converti en WebP.</p>
-                 </div>
-
-                 {/* CARTE STATUT */}
-                 <div className={`backdrop-blur-2xl border shadow-xl rounded-[32px] p-6 transition-all duration-500 ${isOpen ? 'bg-green-500/10 border-green-200' : 'bg-red-500/10 border-red-200'}`}>
-                    <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center gap-3">
-                            <div className={`p-3 rounded-full ${isOpen ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
-                                <Power size={20}/>
-                            </div>
+                    {/* Header App */}
+                    <div style={{ backgroundColor: 'white' }} className="pt-12 pb-4 px-4 shadow-sm relative">
+                        <div className="flex justify-between items-center">
                             <div>
-                                <h3 className={`font-bold text-lg ${isOpen ? 'text-green-800' : 'text-red-800'}`}>{isOpen ? 'OUVERT' : 'FERMÉ'}</h3>
+                                <div className="text-xs text-gray-400">Bienvenue chez</div>
+                                <div style={{ color: settings.primary_color }} className="font-bold text-lg">{settings.name || 'Marque'}</div>
                             </div>
-                        </div>
-                        
-                        <button 
-                            onClick={() => setIsOpen(!isOpen)}
-                            className={`w-16 h-9 rounded-full relative transition-colors duration-300 ${isOpen ? 'bg-green-500' : 'bg-gray-300'}`}
-                        >
-                            <span className={`absolute top-1 w-7 h-7 bg-white rounded-full shadow-md transition-all duration-300 ${isOpen ? 'left-8' : 'left-1'}`}/>
-                        </button>
-                    </div>
-                    <p className={`text-sm font-medium ${isOpen ? 'text-green-700' : 'text-red-700'}`}>
-                        {isOpen ? "Les clients peuvent commander." : "L'application affiche 'Fermé'."}
-                    </p>
-                 </div>
-            </div>
-
-            {/* COLONNE DROITE : INFO & COULEURS */}
-            <div className="lg:col-span-2 space-y-6">
-                
-                {/* CARTE INFORMATIONS GÉNÉRALES */}
-                <div className="bg-white/70 backdrop-blur-2xl border border-white/50 shadow-xl rounded-[32px] p-8">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="p-3 bg-blue-100 text-blue-700 rounded-xl"><Store size={24}/></div>
-                        <h2 className="text-xl font-bold text-gray-900">Informations Générales</h2>
-                    </div>
-
-                    <div className="space-y-6">
-                        <div>
-                            <label className="flex items-center gap-2 text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">
-                                <Type size={14}/> Nom du Restaurant
-                            </label>
-                            <input 
-                                type="text" 
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                className="w-full p-4 bg-white/50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-black outline-none font-bold text-lg transition"
-                                placeholder="Ex: Universal Eats"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="flex items-center gap-2 text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">
-                                <FileText size={14}/> Slogan / Description
-                            </label>
-                            <textarea 
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                className="w-full p-4 bg-white/50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-black outline-none font-medium h-24 resize-none transition"
-                                placeholder="Ex: Les meilleurs burgers de Casablanca..."
-                            />
-                        </div>
-
-                        <div>
-                            <label className="flex items-center gap-2 text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">
-                                <Truck size={14}/> Frais de Livraison Fixes (DH)
-                            </label>
-                            <div className="relative max-w-xs">
-                                <input 
-                                    type="number" 
-                                    value={deliveryFee}
-                                    onChange={(e) => setDeliveryFee(e.target.value)}
-                                    className="w-full pl-4 pr-12 py-4 bg-white/50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-black outline-none font-bold text-xl transition"
-                                    placeholder="0"
-                                />
-                                <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-gray-400">DH</span>
-                            </div>
+                            {settings.logo_url && (
+                                <img src={settings.logo_url} className="w-10 h-10 rounded-lg border object-cover" style={{ borderColor: settings.primary_color }} />
+                            )}
                         </div>
                     </div>
-                </div>
 
-                {/* CARTE BRANDING */}
-                <div className="bg-white/70 backdrop-blur-2xl border border-white/50 shadow-xl rounded-[32px] p-8">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="p-3 bg-purple-100 text-purple-700 rounded-xl"><Palette size={24}/></div>
-                        <h2 className="text-xl font-bold text-gray-900">Charte Graphique (App Client)</h2>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Couleur Principale</label>
-                            <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-gray-200 shadow-sm">
-                                <input 
-                                    type="color" 
-                                    value={primaryColor}
-                                    onChange={(e) => setPrimaryColor(e.target.value)}
-                                    className="w-12 h-12 rounded-xl border-none cursor-pointer"
-                                />
-                                <div className="flex-1">
-                                    <div className="text-xs text-gray-400 font-bold">HEX CODE</div>
-                                    <input 
-                                        type="text" 
-                                        value={primaryColor} 
-                                        onChange={(e) => setPrimaryColor(e.target.value)}
-                                        className="font-mono font-bold text-gray-800 bg-transparent outline-none w-full uppercase"
-                                    />
+                    {/* Body App Simulation */}
+                    <div className="p-4 space-y-4">
+                        <div className="h-32 rounded-xl bg-white shadow-sm p-3 flex gap-3">
+                            <div className="w-24 h-full bg-gray-200 rounded-lg"></div>
+                            <div className="flex-1 space-y-2">
+                                <div style={{ color: settings.primary_color }} className="h-4 w-3/4 bg-current rounded opacity-20"></div>
+                                <div className="h-3 w-1/2 bg-gray-200 rounded"></div>
+                                <div className="mt-4 flex justify-between items-end">
+                                    <div className="font-bold">45.00 DH</div>
+                                    <div style={{ backgroundColor: settings.primary_color }} className="w-8 h-8 rounded-full flex items-center justify-center text-white">+</div>
                                 </div>
                             </div>
-                            <p className="text-xs text-gray-400 mt-2 ml-1">Utilisée pour les boutons et les fonds.</p>
                         </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Couleur Secondaire</label>
-                            <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-gray-200 shadow-sm">
-                                <input 
-                                    type="color" 
-                                    value={secondaryColor}
-                                    onChange={(e) => setSecondaryColor(e.target.value)}
-                                    className="w-12 h-12 rounded-xl border-none cursor-pointer"
-                                />
-                                <select 
-                                    value={secondaryColor} 
-                                    onChange={(e) => setSecondaryColor(e.target.value)}
-                                    className="flex-1 bg-transparent font-bold text-gray-800 outline-none"
-                                >
-                                    <option value="#000000">Noir (#000000)</option>
-                                    <option value="#FFFFFF">Blanc (#FFFFFF)</option>
-                                </select>
-                            </div>
-                             <p className="text-xs text-gray-400 mt-2 ml-1">Utilisée pour le texte sur les zones colorées.</p>
-                        </div>
+                         <div className="h-32 rounded-xl bg-white shadow-sm p-3 flex gap-3">
+                             <div className="w-24 h-full bg-gray-200 rounded-lg"></div>
+                         </div>
                     </div>
-                </div>
 
+                     {/* Bouton Panier Flottant */}
+                     <div className="absolute bottom-6 left-6 right-6">
+                        <div style={{ backgroundColor: settings.primary_color, color: settings.secondary_color }} className="p-4 rounded-2xl font-bold text-center shadow-lg">
+                            Voir le panier (2)
+                        </div>
+                     </div>
+                </div>
             </div>
         </div>
 
-      </div>
+      </form>
     </div>
-  )
+  );
 }
