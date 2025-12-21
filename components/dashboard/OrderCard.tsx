@@ -1,8 +1,7 @@
 'use client';
 
 import React from 'react';
-// CORRECTION : Ajout de Loader2
-import { Clock, User, Truck, ShoppingBag, Utensils, MapPin, Loader2 } from 'lucide-react';
+import { Clock, User, Truck, ShoppingBag, Utensils, MapPin, Loader2, Ban } from 'lucide-react';
 import { Order } from '@/types';
 
 interface OrderCardProps {
@@ -21,7 +20,6 @@ export default function OrderCard({ order, elapsedMinutes, onClick }: OrderCardP
 
   const getBorderColor = () => {
     switch(order.status) {
-        // CORRECTION : minuscule
         case 'pending': 
         case 'confirmed': return 'border-l-yellow-400 ring-yellow-50';
         case 'preparing': return 'border-l-orange-500 ring-orange-50';
@@ -29,6 +27,36 @@ export default function OrderCard({ order, elapsedMinutes, onClick }: OrderCardP
         case 'out_for_delivery': return 'border-l-blue-500 ring-blue-50';
         default: return 'border-l-gray-300';
     }
+  };
+
+  // --- NOUVELLE LOGIQUE DE PARSING ---
+  // Permet de lire l'ancien format (tableau) ET le nouveau format (objet JSON)
+  const parseOptions = (options: any) => {
+    let addons: string[] = [];
+    let removed: string[] = [];
+
+    if (!options) return { addons, removed };
+
+    if (Array.isArray(options)) {
+        // Cas Legacy (Tableau simple de strings)
+        options.forEach(opt => {
+            if (typeof opt === 'string') {
+                if (opt.startsWith('Sans ')) removed.push(opt.replace('Sans ', ''));
+                else addons.push(opt);
+            }
+        });
+    } else if (typeof options === 'object') {
+        // Nouveau format Structuré : { selectedOptions: [...], removedIngredients: [...] }
+        if (Array.isArray(options.selectedOptions)) {
+            // On gère le cas où c'est un objet {name: "Sauce"} ou juste une string
+            addons = options.selectedOptions.map((o: any) => (typeof o === 'object' && o.name) ? o.name : o);
+        }
+        if (Array.isArray(options.removedIngredients)) {
+            removed = options.removedIngredients;
+        }
+    }
+
+    return { addons, removed };
   };
 
   return (
@@ -72,27 +100,45 @@ export default function OrderCard({ order, elapsedMinutes, onClick }: OrderCardP
       <div className="flex-1 overflow-y-auto p-3 custom-scrollbar bg-white">
         <ul className="space-y-3">
           {order.order_items && order.order_items.length > 0 ? (
-            order.order_items.map((item, idx) => (
-              <li key={idx} className="flex gap-3 items-start pb-2 border-b border-dashed border-slate-100 last:border-0">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-900 text-white font-black text-lg shrink-0 shadow-sm">
-                  {item.quantity}
-                </div>
-                <div className="flex-1 leading-tight">
-                  <div className="font-bold text-slate-800 text-base">
-                    {item.product_name}
+            order.order_items.map((item, idx) => {
+              // On appelle notre fonction de parsing pour chaque ligne
+              const { addons, removed } = parseOptions(item.options);
+
+              return (
+                <li key={idx} className="flex gap-3 items-start pb-2 border-b border-dashed border-slate-100 last:border-0">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-900 text-white font-black text-lg shrink-0 shadow-sm">
+                    {item.quantity}
                   </div>
-                  {item.options && item.options.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {item.options.map((opt, i) => (
-                        <span key={i} className="text-[11px] font-bold text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100">
-                          {opt}
-                        </span>
-                      ))}
+                  <div className="flex-1 leading-tight">
+                    <div className="font-bold text-slate-800 text-base">
+                      {item.product_name}
                     </div>
-                  )}
-                </div>
-              </li>
-            ))
+                    
+                    {/* AFFICHAGE DES OPTIONS (BLEU) */}
+                    {addons.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {addons.map((opt, i) => (
+                          <span key={i} className="text-[11px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                            + {opt}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* AFFICHAGE DES EXCLUSIONS (ROUGE) */}
+                    {removed.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {removed.map((ing, i) => (
+                          <span key={i} className="text-[11px] font-bold text-red-700 bg-red-50 px-1.5 py-0.5 rounded border border-red-100 flex items-center gap-1">
+                            <Ban size={10} /> Sans {ing}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-slate-300">
                <Loader2 size={24} className="animate-spin mb-2"/>
