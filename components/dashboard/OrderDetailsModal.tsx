@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { XCircle, Clock, User, Phone, MapPin, Receipt, Loader2, ChefHat, Utensils, CheckCircle2, Map, Truck, AlertCircle } from 'lucide-react';
+import { XCircle, Clock, User, Phone, MapPin, Receipt, Loader2, ChefHat, Utensils, CheckCircle2, Map, Truck, AlertCircle, PackageCheck } from 'lucide-react';
 import { Order, OrderItem } from '@/types';
 
 interface OrderDetailsModalProps {
@@ -20,32 +20,25 @@ export default function OrderDetailsModal({
 }: OrderDetailsModalProps) {
 
   const orderDate = new Date(order.created_at ?? new Date().toISOString());
+  const isDelivery = order.order_type === 'delivery';
 
-  // --- LE PARSEUR INTELLIGENT (C'est cette partie qui manquait) ---
+  // --- LE PARSEUR INTELLIGENT ---
   const renderOptions = (options: any) => {
     if (!options) return null;
 
-    // CAS 1 : NOUVEAU FORMAT (Objet { selectedOptions, removedIngredients })
-    // C'est ce que l'App Client envoie maintenant
     if (typeof options === 'object' && !Array.isArray(options)) {
         const { selectedOptions = [], removedIngredients = [] } = options;
-        
-        // Si tout est vide, on n'affiche rien
         if ((!selectedOptions || selectedOptions.length === 0) && (!removedIngredients || removedIngredients.length === 0)) return null;
 
         return (
             <div className="mt-2 flex flex-wrap gap-2">
-                {/* A. Ingrédients Retirés (Rouge) */}
                 {Array.isArray(removedIngredients) && removedIngredients.map((ing: string, i: number) => (
                     <span key={`rem-${i}`} className="text-[10px] bg-red-50 text-red-600 px-2 py-1 rounded border border-red-100 font-bold uppercase flex items-center gap-1">
                         <XCircle size={10}/> Sans {ing}
                     </span>
                 ))}
-
-                {/* B. Options Choisies (Bleu) */}
                 {Array.isArray(selectedOptions) && selectedOptions.map((opt: any, i: number) => (
                     <span key={`opt-${i}`} className="text-[10px] bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100 font-bold uppercase flex items-center gap-1">
-                        {/* On gère le cas où opt est un objet (nouveau) ou une string (legacy) */}
                         {opt.name || opt} 
                         {opt.price > 0 && <span className="bg-white px-1 rounded ml-1 text-blue-800 border border-blue-100">+{opt.price}</span>}
                     </span>
@@ -54,8 +47,6 @@ export default function OrderDetailsModal({
         );
     }
 
-    // CAS 2 : ANCIEN FORMAT (Tableau simple de strings)
-    // Pour ne pas casser l'historique des anciennes commandes
     if (Array.isArray(options) && options.length > 0) {
         return (
             <div className="mt-2 flex flex-wrap gap-1">
@@ -70,7 +61,6 @@ export default function OrderDetailsModal({
             </div>
         );
     }
-
     return null;
   };
 
@@ -89,9 +79,17 @@ export default function OrderDetailsModal({
                 </span>
               )}
             </div>
-            <p className="text-slate-500 text-sm font-medium mt-1 flex items-center gap-2">
-              <Clock size={14}/> Reçue à {orderDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-            </p>
+            <div className="flex flex-col mt-2 gap-1">
+                <p className="text-slate-500 text-sm font-medium flex items-center gap-2">
+                    <Clock size={14}/> Reçue à {orderDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                </p>
+                {/* Badge Type de Commande */}
+                <div className="flex gap-2">
+                    {order.order_type === 'delivery' && <span className="text-xs font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded uppercase">Livraison</span>}
+                    {order.order_type === 'takeaway' && <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded uppercase">A emporter</span>}
+                    {order.order_type === 'dine_in' && <span className="text-xs font-bold bg-teal-100 text-teal-700 px-2 py-0.5 rounded uppercase">Sur Place</span>}
+                </div>
+            </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
             <XCircle size={28} className="text-slate-400 hover:text-slate-600"/>
@@ -101,14 +99,13 @@ export default function OrderDetailsModal({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
           
-          {/* Info Client & Livraison */}
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 space-y-3">
              <div className="flex justify-between items-start">
                 <div className="space-y-2">
                    <div className="flex items-center gap-2 font-bold text-slate-800"><User size={16}/> {order.customer_name || 'Anonyme'}</div>
                    <div className="flex items-center gap-2 text-slate-600"><Phone size={16}/> {order.customer_phone || '--'}</div>
                 </div>
-                {order.order_type === 'delivery' && (
+                {isDelivery && (
                   <button 
                     onClick={onOpenMap}
                     className="flex items-center gap-2 px-3 py-2 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg text-sm font-bold transition-colors"
@@ -117,16 +114,15 @@ export default function OrderDetailsModal({
                   </button>
                 )}
              </div>
-             {order.order_type === 'delivery' && (
+             {isDelivery && (
                <div className="flex items-start gap-2 pt-2 border-t border-slate-200/50 text-slate-700 text-sm">
                  <MapPin size={16} className="mt-0.5 shrink-0"/> {order.delivery_address}
                </div>
              )}
              
-             {/* Alerte Paiement Cash */}
              {order.payment_method === 'cash' && order.payment_status === 'pending' && (
                  <div className="flex items-center gap-2 text-xs font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded w-fit">
-                     <AlertCircle size={12}/> Paiement à la livraison (Non payé)
+                     <AlertCircle size={12}/> Paiement à la réception (Non payé)
                  </div>
              )}
           </div>
@@ -140,21 +136,15 @@ export default function OrderDetailsModal({
               {items.map((item, idx) => (
                 <div key={idx} className="flex justify-between items-start p-3 bg-white border border-slate-100 rounded-lg shadow-sm">
                   <div className="flex gap-4 w-full">
-                    {/* Quantité */}
                     <div className="bg-slate-900 text-white w-8 h-8 flex items-center justify-center rounded-lg font-bold text-sm shrink-0">
                         {item.quantity}
                     </div>
-                    
-                    {/* Détails Produit */}
                     <div className="flex-1">
                       <div className="font-bold text-slate-800 text-lg leading-tight flex justify-between w-full">
                           <span>{item.product_name}</span>
                           <span className="text-sm font-medium text-slate-500">{(item.price * item.quantity).toFixed(2)} DH</span>
                       </div>
-                      
-                      {/* --- C'EST ICI QUE LES OPTIONS S'AFFICHENT --- */}
                       {renderOptions(item.options)}
-                      
                     </div>
                   </div>
                 </div>
@@ -163,27 +153,57 @@ export default function OrderDetailsModal({
           )}
         </div>
 
-        {/* Footer Actions */}
+        {/* Footer Actions Dynamiques */}
         {!readOnly && (
           <div className="p-6 border-t border-slate-200 bg-white">
             <div className="flex justify-between items-end mb-4">
               <span className="text-slate-400 font-bold text-xs uppercase">Total à encaisser</span>
               <span className="text-3xl font-black text-slate-900">{order.total_amount} DH</span>
             </div>
+            
             <div className="grid grid-cols-1 gap-3">
+              
+              {/* ÉTAPE 1 : EN CUISINE */}
               {(order.status === 'pending' || order.status === 'confirmed') && (
-                <button onClick={() => onUpdateStatus(order.id, 'preparing')} className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-lg hover:bg-slate-800 flex justify-center gap-2 transition-transform active:scale-95"><ChefHat/> Lancer Cuisine</button>
+                <button onClick={() => onUpdateStatus(order.id, 'preparing')} className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-lg hover:bg-slate-800 flex justify-center gap-2 transition-transform active:scale-95">
+                    <ChefHat/> Lancer Cuisine
+                </button>
               )}
+
+              {/* ÉTAPE 2 : PRÊTE */}
               {order.status === 'preparing' && (
-                <button onClick={() => onUpdateStatus(order.id, 'ready')} className="w-full py-4 bg-orange-500 text-white rounded-xl font-bold text-lg hover:bg-orange-600 flex justify-center gap-2 transition-transform active:scale-95"><Utensils/> Prête pour Livreur</button>
+                <button onClick={() => onUpdateStatus(order.id, 'ready')} className="w-full py-4 bg-orange-500 text-white rounded-xl font-bold text-lg hover:bg-orange-600 flex justify-center gap-2 transition-transform active:scale-95">
+                    <Utensils/> {isDelivery ? "Prête pour Livreur" : "Commande Prête"}
+                </button>
               )}
+
+              {/* ÉTAPE 3 : DIVERGENCE SELON TYPE */}
               {order.status === 'ready' && (
-                <button onClick={() => onUpdateStatus(order.id, 'out_for_delivery')} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 flex justify-center gap-2 transition-transform active:scale-95"><Truck/> Départ Livraison</button>
+                <>
+                    {/* CAS A : LIVRAISON (Flux Classique) */}
+                    {isDelivery ? (
+                         <button onClick={() => onUpdateStatus(order.id, 'out_for_delivery')} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 flex justify-center gap-2 transition-transform active:scale-95">
+                            <Truck/> Départ Livraison
+                         </button>
+                    ) : (
+                    /* CAS B : DIRECT (Sur Place / Emporter) -> SAUTE L'ÉTAPE 'OUT_FOR_DELIVERY' */
+                         <button onClick={() => onUpdateStatus(order.id, 'delivered')} className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold text-lg hover:bg-emerald-700 flex justify-center gap-2 transition-transform active:scale-95">
+                            <PackageCheck/> {order.order_type === 'takeaway' ? 'Remis au client (Terminer)' : 'Servi à table (Terminer)'}
+                         </button>
+                    )}
+                </>
               )}
+
+              {/* ÉTAPE 4 : LIVRAISON TERMINÉE (Seulement pour les livraisons) */}
               {order.status === 'out_for_delivery' && (
-                <button onClick={() => onUpdateStatus(order.id, 'delivered')} className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold text-lg hover:bg-emerald-700 flex justify-center gap-2 transition-transform active:scale-95"><CheckCircle2/> Confirmer Livraison</button>
+                <button onClick={() => onUpdateStatus(order.id, 'delivered')} className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold text-lg hover:bg-emerald-700 flex justify-center gap-2 transition-transform active:scale-95">
+                    <CheckCircle2/> Confirmer Livraison
+                </button>
               )}
-              <button onClick={() => { if(confirm('Annuler cette commande ?')) onUpdateStatus(order.id, 'cancelled') }} className="w-full py-2 text-red-500 font-bold text-sm hover:underline">Annuler commande</button>
+
+              <button onClick={() => { if(confirm('Annuler cette commande ?')) onUpdateStatus(order.id, 'cancelled') }} className="w-full py-2 text-red-500 font-bold text-sm hover:underline">
+                  Annuler commande
+              </button>
             </div>
           </div>
         )}

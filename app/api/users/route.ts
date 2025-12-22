@@ -1,13 +1,13 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, password, fullName, role, storeId } = body;
+    // On récupère aussi le téléphone maintenant
+    const { email, password, fullName, role, storeId, phone } = body;
 
-    // 1. Initialiser Supabase en mode ADMIN (Côté serveur uniquement)
+    // 1. Initialiser Supabase en mode ADMIN (Service Role)
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!, 
@@ -23,7 +23,8 @@ export async function POST(request: Request) {
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: email,
       password: password,
-      email_confirm: true // On valide automatiquement l'email
+      email_confirm: true,
+      user_metadata: { full_name: fullName } // Bonnes pratiques : on met le nom aussi dans les métadonnées
     });
 
     if (authError) throw authError;
@@ -37,8 +38,11 @@ export async function POST(request: Request) {
           id: authData.user.id,
           email: email,
           full_name: fullName,
-          role: role,     // 'STORE_MANAGER' ou 'SUPER_ADMIN'
-          store_id: storeId || null // Null si super admin
+          role: role, // 'DRIVER', 'STORE_MANAGER', 'SUPER_ADMIN'
+          store_id: storeId || null,
+          phone: phone || null, // Nouveau champ
+          status: role === 'DRIVER' ? 'OFFLINE' : null, // Statut par défaut
+          wallet_balance: role === 'DRIVER' ? 0 : null // Wallet par défaut
         }
       ]);
 

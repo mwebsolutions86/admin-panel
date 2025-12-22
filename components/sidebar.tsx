@@ -10,7 +10,8 @@ import {
   LogOut, 
   Store, 
   HistoryIcon, 
-  Users 
+  Users,
+  Bike // <--- 1. Import de l'icône
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -21,7 +22,6 @@ export function Sidebar() {
   const [role, setRole] = useState<string>('') 
   const [loading, setLoading] = useState(true)
 
-  // 1. D'ABORD : On déclare tous les Hooks (useEffect, etc.)
   useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -49,15 +49,12 @@ export function Sidebar() {
             checkUser() 
         } else if (event === 'SIGNED_OUT') {
             setRole('')
-            // router.push('/login') // Pas besoin ici, le useEffect va se relancer
         }
     })
 
     return () => subscription.unsubscribe()
   }, [router])
 
-  // 2. ENSUITE : On peut faire les retours conditionnels (Early Return)
-  // Si on est sur la page login, on cache la sidebar
   if (pathname === '/login') {
     return null;
   }
@@ -77,10 +74,12 @@ export function Sidebar() {
   const adminItems = [
     { name: 'Gestion Menu', href: '/menu', icon: UtensilsCrossed },
     { name: 'Points de Vente', href: '/stores', icon: Store },
+    { name: 'Flotte Livreurs', href: '/drivers', icon: Bike }, // <--- 2. Ajout du lien ici
     { name: 'Équipe & Accès', href: '/users', icon: Users },
     { name: 'Paramètres', href: '/settings', icon: Settings },
   ]
 
+  // Seul le SUPER_ADMIN voit les items d'admin
   const menuItems = role === 'SUPER_ADMIN' 
     ? [...commonItems, ...adminItems] 
     : commonItems

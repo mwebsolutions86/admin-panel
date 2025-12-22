@@ -14,11 +14,17 @@ import LocationModal from '@/components/dashboard/LocationModal'
 
 interface Toast { id: number; message: string; type: 'success' | 'warning' | 'error'; }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+// ❌ SUPPRIMÉ : L'initialisation globale a été retirée d'ici pour éviter l'erreur.
 
 export default function LiveDashboard() {
+  // ✅ CORRECTION : Initialisation unique du client Supabase dans le state
+  const [supabase] = useState(() => 
+    createClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!, 
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+  )
+
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({ pending: 0, cooking: 0, revenue: 0 })
@@ -64,7 +70,6 @@ export default function LiveDashboard() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000)
   }, [playNotificationSound]);
 
-  // CORRECTION 1: On accepte string | null | undefined et on sécurise
   const getElapsedMinutes = (createdAt: string | null | undefined) => {
     if (!createdAt || now === 0) return 0
     const start = new Date(createdAt).getTime()
@@ -74,7 +79,6 @@ export default function LiveDashboard() {
   const calculateStats = (currentOrders: Order[]) => {
     const pending = currentOrders.filter(o => o.status === 'pending' || o.status === 'confirmed').length
     const cooking = currentOrders.filter(o => o.status === 'preparing').length
-    // CORRECTION 2: revenue peut être null, on fallback à 0
     const revenue = currentOrders.reduce((acc, curr) => acc + (curr.total_amount || 0), 0)
     setStats({ pending, cooking, revenue }) 
   }
@@ -159,7 +163,6 @@ export default function LiveDashboard() {
              const fullOrder = await fetchFullOrder(newOrderPartial.id);
              if (fullOrder) {
                 setOrders(prev => {
-                    // CORRECTION 3 : Sécurisation du tri avec des dates par défaut si nulles
                     const updated = [...prev, fullOrder].sort((a, b) => new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime());
                     calculateStats(updated);
                     return updated;
@@ -195,7 +198,8 @@ export default function LiveDashboard() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel); clearInterval(timerInterval) }
-  }, [selectedOrder, notify]) 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedOrder, notify, supabase]) // Ajout de supabase aux dépendances
 
   const handleCardClick = (order: Order) => {
     setSelectedOrder(order)
@@ -302,7 +306,6 @@ export default function LiveDashboard() {
                         <OrderCard 
                             key={order.id}
                             order={order}
-                            // Grâce à la modification de getElapsedMinutes, cette ligne est maintenant valide
                             elapsedMinutes={getElapsedMinutes(order.created_at)}
                             onClick={() => handleCardClick(order)}
                         />
