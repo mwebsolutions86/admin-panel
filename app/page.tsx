@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { createClient } from '@supabase/supabase-js'
-import { Database } from '@/types/supabase'
+// ✅ CORRECTION 1 : On importe l'instance globale pour éviter le conflit "Multiple instances"
+import { supabase } from '@/lib/supabase'
+// ✅ CORRECTION 2 : On utilise les types générés officiels
+import { Database } from '@/types/database.types'
 import { 
   Bell, ChefHat, Receipt, Loader2, Utensils, AlertCircle, CheckCircle2, Volume2, VolumeX 
 } from 'lucide-react'
@@ -14,16 +16,8 @@ import LocationModal from '@/components/dashboard/LocationModal'
 
 interface Toast { id: number; message: string; type: 'success' | 'warning' | 'error'; }
 
-// ❌ SUPPRIMÉ : L'initialisation globale a été retirée d'ici pour éviter l'erreur.
-
 export default function LiveDashboard() {
-  // ✅ CORRECTION : Initialisation unique du client Supabase dans le state
-  const [supabase] = useState(() => 
-    createClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!, 
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-  )
+  // ❌ SUPPRIMÉ : Plus de useState pour supabase ici.
 
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
@@ -199,14 +193,20 @@ export default function LiveDashboard() {
 
     return () => { supabase.removeChannel(channel); clearInterval(timerInterval) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedOrder, notify, supabase]) // Ajout de supabase aux dépendances
+  }, [selectedOrder, notify]) 
 
   const handleCardClick = (order: Order) => {
     setSelectedOrder(order)
     setShowLocationModal(false) 
   }
 
+  // ✅ CORRECTION 3 : Fonction robuste avec gestion d'erreurs et rollback
   const updateStatus = async (orderId: string, newStatus: Order['status']) => {
+    // 1. Sauvegarde de l'état actuel au cas où ça plante
+    const previousOrders = [...orders];
+    const previousSelectedOrder = selectedOrder;
+
+    // 2. Mise à jour Optimiste (Interface immédiate)
     if (newStatus === 'delivered' || newStatus === 'cancelled') {
         const remainingOrders = orders.filter(o => o.id !== orderId)
         setOrders(remainingOrders)
@@ -227,8 +227,20 @@ export default function LiveDashboard() {
         if(newStatus === 'out_for_delivery') notify("Départ Livreur 🛵", 'success')
     }
 
-    // @ts-expect-error: Supabase type definition mismatch
-    await supabase.from('orders').update({ status: newStatus }).eq('id', orderId)
+    // 3. Appel à Supabase
+    try {
+        const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', orderId);
+        
+        if (error) throw error;
+    } catch (error) {
+        console.error("Erreur mise à jour:", error);
+        notify("Erreur lors de la mise à jour !", 'error');
+        
+        // 4. ROLLBACK : On remet tout comme avant si ça a planté
+        setOrders(previousOrders);
+        setSelectedOrder(previousSelectedOrder);
+        calculateStats(previousOrders);
+    }
   }
 
   const displayedOrders = userRole === 'STORE_MANAGER' && userStoreId
