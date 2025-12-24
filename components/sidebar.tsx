@@ -11,7 +11,8 @@ import {
   Store, 
   HistoryIcon, 
   Users,
-  Bike // <--- 1. Import de l'icône
+  Bike,
+  TrendingUp // <--- IMPORT
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -72,9 +73,10 @@ export function Sidebar() {
   ]
 
   const adminItems = [
+    { name: 'Analytics', href: '/analytics', icon: TrendingUp }, // <--- AJOUTÉ ICI
     { name: 'Gestion Menu', href: '/menu', icon: UtensilsCrossed },
     { name: 'Points de Vente', href: '/stores', icon: Store },
-    { name: 'Flotte Livreurs', href: '/drivers', icon: Bike }, // <--- 2. Ajout du lien ici
+    { name: 'Flotte Livreurs', href: '/drivers', icon: Bike }, 
     { name: 'Équipe & Accès', href: '/users', icon: Users },
     { name: 'Paramètres', href: '/settings', icon: Settings },
   ]

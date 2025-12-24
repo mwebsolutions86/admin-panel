@@ -1,294 +1,272 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import { 
-  Users, Plus, Search, Phone, Wallet, Trash2, 
-  MapPin, CircleDot, Loader2, AlertTriangle, Bike 
-} from 'lucide-react'
+  Bike, Plus, Search, Battery, Signal, MapPin, 
+  Phone, User, MoreVertical, ShieldAlert, Store
+} from 'lucide-react';
+import FleetMap, { DriverMarker } from '@/components/fleet-map';
+import AddDriverModal from '@/components/dashboard/AddDriverModal';
 
-// Types locaux pour l'affichage
-type Driver = {
-  id: string
-  full_name: string
-  email: string
-  phone: string | null
-  status: 'ONLINE' | 'OFFLINE' | 'BUSY'
-  wallet_balance: number
-  avatar_url: string | null
+// On enrichit le type pour inclure le Store
+interface DriverProfile {
+  id: string;
+  full_name: string | null;
+  phone: string | null;
+  status: string; 
+  role: string;
+  store_id: string | null;
+  // Relation Supabase (jointure)
+  stores?: { name: string } | null;
+  
+  battery_level?: number; 
+  current_lat?: number;   
+  current_lng?: number;   
 }
 
 export default function DriversPage() {
-  const [drivers, setDrivers] = useState<Driver[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showModal, setShowModal] = useState(false)
-  const [creating, setCreating] = useState(false)
-
-  // Formulaire d'ajout
-  const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    password: ''
-  })
+  const [drivers, setDrivers] = useState<DriverProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   useEffect(() => {
-    fetchDrivers()
-  }, [])
+    fetchDrivers();
+
+    const channel = supabase
+      .channel('fleet-status')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (payload) => {
+          const newProfile = payload.new as DriverProfile;
+          const isDriver = newProfile.role?.toLowerCase() === 'driver';
+
+          if (isDriver) {
+              // Note: le realtime renvoie la ligne brute, on n'a pas le nom du store via la jointure ici
+              // Pour simplifier, on recharge tout si ajout, ou on patch intelligemment
+              if (payload.eventType === 'INSERT') {
+                 fetchDrivers(); // Recharger pour avoir le nom du store propre
+              } else if (payload.eventType === 'UPDATE') {
+                  setDrivers(prev => prev.map(d => d.id === newProfile.id ? { ...d, ...newProfile } : d));
+              }
+          }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const fetchDrivers = async () => {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('role', 'DRIVER')
-      .order('created_at', { ascending: false })
-    
-    if (!error && data) {
-      setDrivers(data as any)
+    setLoading(true);
+    // ✅ ON RÉCUPÈRE LE NOM DU STORE
+    const { data } = await supabase
+        .from('profiles')
+        .select('*, stores(name)') 
+        .ilike('role', 'driver');
+
+    if (data) {
+        const enrichedDrivers = data.map((d: any) => ({
+            ...d,
+            status: d.status || 'offline',
+            battery_level: Math.floor(Math.random() * (100 - 20) + 20),
+            current_lat: 30.42 + (Math.random() * 0.04 - 0.02),
+            current_lng: -9.60 + (Math.random() * 0.04 - 0.02),
+        }));
+        setDrivers(enrichedDrivers);
+        
+        if(enrichedDrivers.length > 0 && !selectedDriverId) {
+            setSelectedDriverId(enrichedDrivers[0].id);
+        }
     }
-    setLoading(false)
-  }
+    setLoading(false);
+  };
 
-  const handleCreateDriver = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setCreating(true)
+  const filteredDrivers = drivers.filter(d => 
+    (d.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+    (d.phone || '').includes(searchQuery)
+  );
 
-    try {
-      const res = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          role: 'DRIVER',
-          storeId: null // Pour l'instant, livreurs globaux (flotte)
-        })
-      })
+  const getNormalizedStatus = (status: string) => {
+      const s = status?.toLowerCase();
+      if (s === 'online') return 'online';
+      if (s === 'busy') return 'busy';
+      return 'offline';
+  };
 
-      const json = await res.json()
-      
-      if (!res.ok) throw new Error(json.error)
+  const mapMarkers: DriverMarker[] = drivers.map(d => ({
+    id: d.id,
+    name: d.full_name || 'Livreur',
+    lat: d.current_lat || 30.4278,
+    lng: d.current_lng || -9.5981,
+    status: getNormalizedStatus(d.status) as 'online' | 'offline' | 'busy'
+  }));
 
-      setShowModal(false)
-      setFormData({ fullName: '', email: '', phone: '', password: '' })
-      fetchDrivers() // Rafraîchir la liste
-      alert("Livreur créé avec succès ! 🛵")
-
-    } catch (error: any) {
-      alert("Erreur: " + error.message)
-    } finally {
-      setCreating(false)
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    if (!confirm("Voulez-vous vraiment supprimer ce livreur ? Cette action est irréversible.")) return
-
-    // Note : Supabase Auth ne peut être supprimé que via l'API Admin, 
-    // ici on supprime juste le profil pour l'affichage MVP.
-    const { error } = await supabase.from('profiles').delete().eq('id', id)
-    
-    if (error) alert("Erreur lors de la suppression")
-    else fetchDrivers()
-  }
+  const selectedDriver = drivers.find(d => d.id === selectedDriverId);
+  const mapCenter: [number, number] = selectedDriver 
+    ? [selectedDriver.current_lat || 30.4278, selectedDriver.current_lng || -9.5981] 
+    : [30.4278, -9.5981];
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto">
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
       
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900 flex items-center gap-3">
-            <Bike size={32} className="text-blue-600"/> 
-            Flotte Livreurs
-          </h1>
-          <p className="text-slate-500 mt-1">Gérez vos coursiers, suivez leur statut et leur solde cash.</p>
+      <AddDriverModal 
+         isOpen={isAddModalOpen} 
+         onClose={() => setIsAddModalOpen(false)}
+         onSuccess={() => { fetchDrivers(); }} 
+      />
+
+      <div className="w-96 flex flex-col border-r border-slate-200 bg-white z-10 shadow-xl">
+        <div className="p-5 border-b border-slate-100 bg-white">
+            <div className="flex justify-between items-center mb-4">
+                <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                    <Bike className="text-blue-600"/> FLOTTE ({drivers.length})
+                </h1>
+                <button 
+                    onClick={() => setIsAddModalOpen(true)}
+                    className="p-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors shadow-lg shadow-slate-900/20 active:scale-95"
+                >
+                    <Plus size={18}/>
+                </button>
+            </div>
+            
+            <div className="relative group">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors"/>
+                <input 
+                    type="text" 
+                    placeholder="Rechercher un livreur..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                />
+            </div>
         </div>
-        <button 
-          onClick={() => setShowModal(true)}
-          className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition shadow-lg shadow-slate-200"
-        >
-          <Plus size={20} /> Nouveau Livreur
-        </button>
-      </div>
 
-      {/* STATS RAPIDES */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className="bg-green-100 p-3 rounded-xl text-green-700"><CircleDot size={24}/></div>
-            <div>
-                <div className="text-slate-500 text-xs font-bold uppercase">En Ligne</div>
-                <div className="text-2xl font-black">{drivers.filter(d => d.status === 'ONLINE').length}</div>
-            </div>
-         </div>
-         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className="bg-orange-100 p-3 rounded-xl text-orange-700"><Bike size={24}/></div>
-            <div>
-                <div className="text-slate-500 text-xs font-bold uppercase">En Course</div>
-                <div className="text-2xl font-black">{drivers.filter(d => d.status === 'BUSY').length}</div>
-            </div>
-         </div>
-         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-            <div className="bg-blue-100 p-3 rounded-xl text-blue-700"><Wallet size={24}/></div>
-            <div>
-                <div className="text-slate-500 text-xs font-bold uppercase">Cash Flotte</div>
-                <div className="text-2xl font-black">
-                    {drivers.reduce((acc, curr) => acc + (curr.wallet_balance || 0), 0).toFixed(0)} <span className="text-sm font-normal text-slate-400">DH</span>
-                </div>
-            </div>
-         </div>
-      </div>
-
-      {/* TABLEAU */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        {loading ? (
-           <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-slate-300" size={40}/></div>
-        ) : drivers.length === 0 ? (
-           <div className="p-20 text-center text-slate-400">Aucun livreur enregistré.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase text-xs">
-                <tr>
-                  <th className="p-6">Livreur</th>
-                  <th className="p-6">Contact</th>
-                  <th className="p-6">Statut</th>
-                  <th className="p-6">Wallet (Cash)</th>
-                  <th className="p-6 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {drivers.map((driver) => (
-                  <tr key={driver.id} className="hover:bg-slate-50/50 transition">
-                    <td className="p-6">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold">
-                            {driver.full_name?.charAt(0) || 'D'}
-                        </div>
-                        <div>
-                            <div className="font-bold text-slate-900">{driver.full_name}</div>
-                            <div className="text-xs text-slate-400 font-mono">{driver.id.slice(0, 8)}...</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-6">
-                        <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2 text-sm text-slate-600">
-                                <Phone size={14}/> {driver.phone || 'Non renseigné'}
-                            </div>
-                            <div className="text-xs text-slate-400">{driver.email}</div>
-                        </div>
-                    </td>
-                    <td className="p-6">
-                        <span className={`
-                            inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border
-                            ${driver.status === 'ONLINE' ? 'bg-green-50 text-green-700 border-green-100' : 
-                              driver.status === 'BUSY' ? 'bg-orange-50 text-orange-700 border-orange-100' : 
-                              'bg-slate-100 text-slate-500 border-slate-200'}
-                        `}>
-                            <div className={`w-2 h-2 rounded-full ${driver.status === 'ONLINE' ? 'bg-green-500' : driver.status === 'BUSY' ? 'bg-orange-500' : 'bg-slate-400'}`} />
-                            {driver.status === 'ONLINE' ? 'Disponible' : driver.status === 'BUSY' ? 'En course' : 'Hors ligne'}
-                        </span>
-                    </td>
-                    <td className="p-6">
-                        <div className="flex items-center gap-2">
-                            <span className={`font-mono font-bold ${driver.wallet_balance > 500 ? 'text-red-600' : 'text-slate-700'}`}>
-                                {driver.wallet_balance} DH
-                            </span>
-                            {/* CORRECTION : On enveloppe l'icône dans un div pour le titre */}
-                            {driver.wallet_balance > 500 && (
-                                <div title="Plafond Cash dépassé !">
-                                    <AlertTriangle size={16} className="text-red-500" />
-                                </div>
-                            )}
-                        </div>
-                    </td>
-                    <td className="p-6 text-right">
-                        <button 
-                            onClick={() => handleDelete(driver.id)}
-                            className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-lg transition"
-                            title="Supprimer"
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
+            {loading ? (
+                <div className="p-10 text-center text-slate-400 text-sm font-medium animate-pulse">Chargement de la flotte...</div>
+            ) : filteredDrivers.length === 0 ? (
+                <div className="p-10 text-center text-slate-400 text-sm">Aucun livreur trouvé.</div>
+            ) : (
+                filteredDrivers.map(driver => {
+                    const status = getNormalizedStatus(driver.status);
+                    return (
+                        <div 
+                            key={driver.id}
+                            onClick={() => setSelectedDriverId(driver.id)}
+                            className={`p-3 rounded-xl cursor-pointer border transition-all duration-200 group ${
+                                selectedDriverId === driver.id 
+                                ? 'bg-blue-50 border-blue-200 shadow-sm' 
+                                : 'bg-white border-transparent hover:bg-slate-50 hover:border-slate-200'
+                            }`}
                         >
-                            <Trash2 size={18} />
-                        </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                            <div className="flex justify-between items-start mb-2">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold overflow-hidden border-2 border-white shadow-sm">
+                                        <User size={20}/>
+                                    </div>
+                                    <div>
+                                        <h3 className={`font-bold text-sm ${selectedDriverId === driver.id ? 'text-blue-900' : 'text-slate-800'}`}>{driver.full_name || 'Livreur Inconnu'}</h3>
+                                        
+                                        {/* BADGE D'AFFECTATION (NOUVEAU) */}
+                                        <div className="flex items-center gap-1.5 mt-1">
+                                            {driver.store_id && driver.stores ? (
+                                                <span className="flex items-center gap-1 text-[9px] font-black uppercase text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
+                                                    <Store size={8}/> {driver.stores.name}
+                                                </span>
+                                            ) : (
+                                                <span className="text-[9px] font-black uppercase text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                                    Siège / Global
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div className={`w-2 h-2 rounded-full ${status === 'online' ? 'bg-emerald-500' : status === 'busy' ? 'bg-amber-500' : 'bg-slate-300'}`}></div>
+                            </div>
+                            
+                            <div className="flex items-center justify-between text-xs text-slate-500 pl-1 mt-2">
+                                <span className="flex items-center gap-1 font-medium"><Phone size={10}/> {driver.phone || '--'}</span>
+                                <span className={`flex items-center gap-1 font-medium ${
+                                    (driver.battery_level || 0) < 20 ? 'text-red-500' : 'text-slate-500'
+                                }`}>
+                                    <Battery size={10}/> {driver.battery_level}%
+                                </span>
+                            </div>
+                        </div>
+                    );
+                })
+            )}
+        </div>
+        
+        <div className="p-4 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 font-medium flex justify-between">
+            <span>En ligne: <b className="text-emerald-600">{drivers.filter(d => getNormalizedStatus(d.status) === 'online').length}</b></span>
+            <span>En course: <b className="text-amber-600">{drivers.filter(d => getNormalizedStatus(d.status) === 'busy').length}</b></span>
+            <span>Total: <b>{drivers.length}</b></span>
+        </div>
       </div>
 
-      {/* MODALE D'AJOUT */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                    <h2 className="text-xl font-bold">Nouveau Livreur</h2>
-                    <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600"><Plus className="rotate-45" size={24}/></button>
+      <div className="flex-1 relative bg-slate-100">
+         <FleetMap 
+            drivers={mapMarkers} 
+            center={mapCenter}
+            zoom={14}
+         />
+         
+         {/* Overlay Détail Livreur */}
+         {selectedDriver && (
+             <div className="absolute top-6 right-6 z-[1000] bg-white/90 backdrop-blur-md p-4 rounded-2xl shadow-2xl border border-white/50 w-72 animate-in slide-in-from-right-10 fade-in duration-300">
+                <div className="flex items-center gap-4 mb-4">
+                    <div className="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-lg shadow-lg">
+                        {selectedDriver.full_name?.charAt(0) || 'U'}
+                    </div>
+                    <div>
+                        <h2 className="font-black text-slate-900 text-lg leading-tight">{selectedDriver.full_name}</h2>
+                        
+                        <div className="flex gap-2 mt-1">
+                            <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                                getNormalizedStatus(selectedDriver.status) === 'online' ? 'bg-emerald-100 text-emerald-700' : getNormalizedStatus(selectedDriver.status) === 'busy' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                                {getNormalizedStatus(selectedDriver.status) === 'online' ? 'Disponible' : getNormalizedStatus(selectedDriver.status) === 'busy' ? 'En livraison' : 'Hors ligne'}
+                            </span>
+                        </div>
+                    </div>
                 </div>
                 
-                <form onSubmit={handleCreateDriver} className="p-6 space-y-4">
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Nom complet</label>
-                        <input 
-                            required
-                            type="text" 
-                            className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent outline-none transition"
-                            placeholder="Ex: Karim Benali"
-                            value={formData.fullName}
-                            onChange={e => setFormData({...formData, fullName: e.target.value})}
-                        />
+                {/* Info Store Affecté (Overlay) */}
+                {selectedDriver.store_id && selectedDriver.stores && (
+                    <div className="mb-4 bg-purple-50 p-2 rounded-lg border border-purple-100 text-center">
+                        <div className="text-[9px] font-bold text-purple-400 uppercase flex items-center justify-center gap-1"><Store size={10}/> Affecté à</div>
+                        <div className="text-sm font-black text-purple-900">{selectedDriver.stores.name}</div>
                     </div>
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Téléphone</label>
-                        <input 
-                            required
-                            type="tel" 
-                            className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent outline-none transition"
-                            placeholder="Ex: 06 12 34 56 78"
-                            value={formData.phone}
-                            onChange={e => setFormData({...formData, phone: e.target.value})}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Email (Identifiant)</label>
-                        <input 
-                            required
-                            type="email" 
-                            className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent outline-none transition"
-                            placeholder="livreur@universaleats.com"
-                            value={formData.email}
-                            onChange={e => setFormData({...formData, email: e.target.value})}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">Mot de passe provisoire</label>
-                        <input 
-                            required
-                            type="text" 
-                            className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent outline-none transition bg-slate-50 font-mono text-sm"
-                            placeholder="Au moins 6 caractères"
-                            value={formData.password}
-                            onChange={e => setFormData({...formData, password: e.target.value})}
-                        />
-                    </div>
+                )}
 
-                    <div className="pt-4">
-                        <button 
-                            type="submit" 
-                            disabled={creating}
-                            className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-slate-800 transition flex items-center justify-center gap-2"
-                        >
-                            {creating ? <Loader2 className="animate-spin"/> : "Créer le compte"}
-                        </button>
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                    <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 text-center">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">Courses Jour</div>
+                        <div className="text-xl font-black text-slate-800">12</div>
                     </div>
-                </form>
-            </div>
-        </div>
-      )}
+                    <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 text-center">
+                         <div className="text-[10px] font-bold text-slate-400 uppercase">Gains</div>
+                         <div className="text-xl font-black text-slate-800">450 <span className="text-xs">DH</span></div>
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <button className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/30 transition-all flex items-center justify-center gap-2">
+                        <Phone size={16}/> Appeler
+                    </button>
+                    <button className="w-full py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2">
+                        <MapPin size={16}/> Voir Historique Trajet
+                    </button>
+                    <button className="w-full py-2.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2">
+                        <ShieldAlert size={16}/> Désactiver Compte
+                    </button>
+                </div>
+             </div>
+         )}
+      </div>
 
     </div>
-  )
+  );
 }
