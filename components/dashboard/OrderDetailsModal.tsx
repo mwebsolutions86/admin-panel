@@ -22,24 +22,38 @@ export default function OrderDetailsModal({
   const orderDate = new Date(order.created_at ?? new Date().toISOString());
   const isDelivery = order.order_type === 'delivery';
 
-  // --- LE PARSEUR INTELLIGENT ---
+  // --- PARSEUR INTELLIGENT AVEC REGROUPEMENT ---
   const renderOptions = (options: any) => {
     if (!options) return null;
 
+    // Cas Nouveau Format JSONB ({ selectedOptions: [...], removedIngredients: [...] })
     if (typeof options === 'object' && !Array.isArray(options)) {
         const { selectedOptions = [], removedIngredients = [] } = options;
         if ((!selectedOptions || selectedOptions.length === 0) && (!removedIngredients || removedIngredients.length === 0)) return null;
 
+        // Regroupement des options identiques (compteur)
+        const groupedOptions = selectedOptions.reduce((acc: any, opt: any) => {
+            const key = opt.id || opt.name || opt;
+            if (!acc[key]) acc[key] = { ...opt, count: 0, name: opt.name || opt };
+            acc[key].count += 1;
+            return acc;
+        }, {});
+
         return (
             <div className="mt-2 flex flex-wrap gap-2">
+                {/* Sans Ingrédients (Rouge) */}
                 {Array.isArray(removedIngredients) && removedIngredients.map((ing: string, i: number) => (
                     <span key={`rem-${i}`} className="text-[10px] bg-red-50 text-red-600 px-2 py-1 rounded border border-red-100 font-bold uppercase flex items-center gap-1">
                         <XCircle size={10}/> Sans {ing}
                     </span>
                 ))}
-                {Array.isArray(selectedOptions) && selectedOptions.map((opt: any, i: number) => (
+
+                {/* Options Groupées (Bleu) */}
+                {Object.values(groupedOptions).map((opt: any, i: number) => (
                     <span key={`opt-${i}`} className="text-[10px] bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100 font-bold uppercase flex items-center gap-1">
-                        {opt.name || opt} 
+                        {/* Affiche "3x" si quantité > 1 */}
+                        {opt.count > 1 && <span className="bg-blue-200 text-blue-800 px-1 rounded-sm text-[9px]">{opt.count}x</span>}
+                        {opt.name} 
                         {opt.price > 0 && <span className="bg-white px-1 rounded ml-1 text-blue-800 border border-blue-100">+{opt.price}</span>}
                     </span>
                 ))}
@@ -47,6 +61,7 @@ export default function OrderDetailsModal({
         );
     }
 
+    // Cas Ancien Format (Tableau simple) - Legacy
     if (Array.isArray(options) && options.length > 0) {
         return (
             <div className="mt-2 flex flex-wrap gap-1">
@@ -83,7 +98,6 @@ export default function OrderDetailsModal({
                 <p className="text-slate-500 text-sm font-medium flex items-center gap-2">
                     <Clock size={14}/> Reçue à {orderDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                 </p>
-                {/* Badge Type de Commande */}
                 <div className="flex gap-2">
                     {order.order_type === 'delivery' && <span className="text-xs font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded uppercase">Livraison</span>}
                     {order.order_type === 'takeaway' && <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded uppercase">A emporter</span>}
@@ -120,8 +134,14 @@ export default function OrderDetailsModal({
                </div>
              )}
              
+             {order.notes && (
+                 <div className="mt-2 bg-yellow-50 border border-yellow-100 p-3 rounded-lg text-sm text-yellow-800">
+                     <span className="font-bold">Note client :</span> {order.notes}
+                 </div>
+             )}
+             
              {order.payment_method === 'cash' && order.payment_status === 'pending' && (
-                 <div className="flex items-center gap-2 text-xs font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded w-fit">
+                 <div className="flex items-center gap-2 text-xs font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded w-fit mt-2">
                      <AlertCircle size={12}/> Paiement à la réception (Non payé)
                  </div>
              )}
@@ -153,7 +173,7 @@ export default function OrderDetailsModal({
           )}
         </div>
 
-        {/* Footer Actions Dynamiques */}
+        {/* Footer Actions */}
         {!readOnly && (
           <div className="p-6 border-t border-slate-200 bg-white">
             <div className="flex justify-between items-end mb-4">
@@ -162,31 +182,25 @@ export default function OrderDetailsModal({
             </div>
             
             <div className="grid grid-cols-1 gap-3">
-              
-              {/* ÉTAPE 1 : EN CUISINE */}
               {(order.status === 'pending' || order.status === 'confirmed') && (
                 <button onClick={() => onUpdateStatus(order.id, 'preparing')} className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-lg hover:bg-slate-800 flex justify-center gap-2 transition-transform active:scale-95">
                     <ChefHat/> Lancer Cuisine
                 </button>
               )}
 
-              {/* ÉTAPE 2 : PRÊTE */}
               {order.status === 'preparing' && (
                 <button onClick={() => onUpdateStatus(order.id, 'ready')} className="w-full py-4 bg-orange-500 text-white rounded-xl font-bold text-lg hover:bg-orange-600 flex justify-center gap-2 transition-transform active:scale-95">
                     <Utensils/> {isDelivery ? "Prête pour Livreur" : "Commande Prête"}
                 </button>
               )}
 
-              {/* ÉTAPE 3 : DIVERGENCE SELON TYPE */}
               {order.status === 'ready' && (
                 <>
-                    {/* CAS A : LIVRAISON (Flux Classique) */}
                     {isDelivery ? (
                          <button onClick={() => onUpdateStatus(order.id, 'out_for_delivery')} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 flex justify-center gap-2 transition-transform active:scale-95">
                             <Truck/> Départ Livraison
                          </button>
                     ) : (
-                    /* CAS B : DIRECT (Sur Place / Emporter) -> SAUTE L'ÉTAPE 'OUT_FOR_DELIVERY' */
                          <button onClick={() => onUpdateStatus(order.id, 'delivered')} className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold text-lg hover:bg-emerald-700 flex justify-center gap-2 transition-transform active:scale-95">
                             <PackageCheck/> {order.order_type === 'takeaway' ? 'Remis au client (Terminer)' : 'Servi à table (Terminer)'}
                          </button>
@@ -194,7 +208,6 @@ export default function OrderDetailsModal({
                 </>
               )}
 
-              {/* ÉTAPE 4 : LIVRAISON TERMINÉE (Seulement pour les livraisons) */}
               {order.status === 'out_for_delivery' && (
                 <button onClick={() => onUpdateStatus(order.id, 'delivered')} className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold text-lg hover:bg-emerald-700 flex justify-center gap-2 transition-transform active:scale-95">
                     <CheckCircle2/> Confirmer Livraison
@@ -207,16 +220,6 @@ export default function OrderDetailsModal({
             </div>
           </div>
         )}
-        
-        {readOnly && (
-           <div className="p-6 border-t border-slate-200 bg-slate-50">
-             <div className="flex justify-between items-center">
-                <span className="font-bold text-slate-500">Total payé</span>
-                <span className="text-3xl font-black text-slate-900">{order.total_amount} DH</span>
-             </div>
-           </div>
-        )}
-
       </div>
     </div>
   );

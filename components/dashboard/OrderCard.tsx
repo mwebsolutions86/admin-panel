@@ -8,7 +8,6 @@ interface OrderCardProps {
   order: Order;
   elapsedMinutes: number;
   onClick: () => void;
-  // ✅ CORRECTION : Ajout de la prop optionnelle
   compact?: boolean;
 }
 
@@ -31,26 +30,52 @@ export default function OrderCard({ order, elapsedMinutes, onClick, compact = fa
     }
   };
 
+  // ✅ FONCTION INTELLIGENTE DE REGROUPEMENT
   const parseOptions = (options: any) => {
-    let addons: string[] = [];
+    let addons: { name: string; count: number }[] = [];
     let removed: string[] = [];
 
     if (!options) return { addons, removed };
 
-    if (Array.isArray(options)) {
+    // 1. Format JSONB (Le nouveau standard)
+    if (typeof options === 'object' && !Array.isArray(options)) {
+        const { selectedOptions = [], removedIngredients = [] } = options;
+        
+        // Ingrédients retirés
+        if (Array.isArray(removedIngredients)) {
+            removed = removedIngredients;
+        }
+
+        // Options (On regroupe les doublons)
+        if (Array.isArray(selectedOptions)) {
+             // Sécurité : on aplatit au cas où
+             const flatOptions = selectedOptions.flat();
+             
+             const counts = flatOptions.reduce((acc: any, opt: any) => {
+                // On récupère le nom proprement
+                const name = (typeof opt === 'object' && opt.name) ? opt.name : opt;
+                
+                if (!acc[name]) acc[name] = { name, count: 0 };
+                acc[name].count += 1;
+                return acc;
+            }, {});
+            
+            addons = Object.values(counts);
+        }
+    } 
+    // 2. Format Legacy (Tableau de strings) - Au cas où
+    else if (Array.isArray(options)) {
         options.forEach(opt => {
             if (typeof opt === 'string') {
-                if (opt.startsWith('Sans ')) removed.push(opt.replace('Sans ', ''));
-                else addons.push(opt);
+                if (opt.startsWith('Sans ')) {
+                    removed.push(opt.replace('Sans ', ''));
+                } else {
+                    const existing = addons.find(a => a.name === opt);
+                    if (existing) existing.count++;
+                    else addons.push({ name: opt, count: 1 });
+                }
             }
         });
-    } else if (typeof options === 'object') {
-        if (Array.isArray(options.selectedOptions)) {
-            addons = options.selectedOptions.map((o: any) => (typeof o === 'object' && o.name) ? o.name : o);
-        }
-        if (Array.isArray(options.removedIngredients)) {
-            removed = options.removedIngredients;
-        }
     }
     return { addons, removed };
   };
@@ -64,7 +89,7 @@ export default function OrderCard({ order, elapsedMinutes, onClick, compact = fa
         transition-all duration-200 cursor-pointer 
         hover:shadow-xl hover:scale-[1.02] active:scale-95
         ${getBorderColor()}
-        ${compact ? 'h-[280px]' : 'h-[400px]'} // ✅ HAUTEUR VARIABLE
+        ${compact ? 'h-[280px]' : 'h-[400px]'}
       `}
     >
       {/* HEADER */}
@@ -74,7 +99,6 @@ export default function OrderCard({ order, elapsedMinutes, onClick, compact = fa
              <span className={`${compact ? 'text-lg' : 'text-2xl'} font-black text-slate-900 font-mono tracking-tight`}>
                 #{order.order_number}
              </span>
-             {/* Masquer le type en mode compact si besoin, ou le réduire */}
              <div className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-white border border-slate-200 text-slate-500">
                 {order.order_type === 'delivery' ? <Truck size={10}/> : order.order_type === 'takeaway' ? <ShoppingBag size={10}/> : <Utensils size={10}/>}
                 {!compact && (order.order_type === 'delivery' ? 'Livraison' : order.order_type === 'takeaway' ? 'Emporter' : 'Sur Place')}
@@ -85,7 +109,6 @@ export default function OrderCard({ order, elapsedMinutes, onClick, compact = fa
            </div>
         </div>
         
-        {/* On masque l'adresse en mode compact pour gagner de la place si nécessaire, ou on truncate plus fort */}
         <div className="flex items-center gap-2 text-slate-600 text-xs font-bold truncate">
            <User size={12}/> {compact ? (order.customer_name?.split(' ')[0] || 'Client') : (order.customer_name || 'Client')}
            {!compact && order.order_type === 'delivery' && (
@@ -102,6 +125,7 @@ export default function OrderCard({ order, elapsedMinutes, onClick, compact = fa
         <ul className={`${compact ? 'space-y-2' : 'space-y-3'}`}>
           {order.order_items && order.order_items.length > 0 ? (
             order.order_items.map((item, idx) => {
+              // On utilise le parseur intelligent
               const { addons, removed } = parseOptions(item.options);
 
               return (
@@ -114,17 +138,20 @@ export default function OrderCard({ order, elapsedMinutes, onClick, compact = fa
                       {item.product_name}
                     </div>
                     
-                    {/* En mode compact, on n'affiche les options que s'il y en a, et plus petit */}
+                    {/* AFFICHAGE DES OPTIONS GROUPÉES */}
                     {addons.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
                         {addons.map((opt, i) => (
                           <span key={i} className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1 py-0.5 rounded border border-blue-100">
-                            + {opt}
+                            {/* Si quantité > 1, on affiche le compteur (ex: 2x) */}
+                            {opt.count > 1 && <span className="mr-0.5 text-blue-900 bg-blue-200 px-1 rounded-sm">{opt.count}x</span>} 
+                            + {opt.name}
                           </span>
                         ))}
                       </div>
                     )}
 
+                    {/* Ingrédients retirés */}
                     {removed.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
                         {removed.map((ing, i) => (

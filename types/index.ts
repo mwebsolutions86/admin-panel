@@ -23,6 +23,9 @@ export interface Order {
   created_at: string; 
   status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled';
   
+  // ✅ CORRECTION : Ajout du champ notes
+  notes: string | null;
+
   // Relations
   order_items: OrderItem[]; 
   
