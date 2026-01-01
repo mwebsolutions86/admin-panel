@@ -305,7 +305,7 @@ export default function MenuLab() {
         const prompt = modalMode === 'category' 
             ? `artistic food photography of ${formName}, menu style, 4k` 
             : `delicious ${formName}, ${formDesc}, food photography, 4k, studio light`;
-        const res = await fetch(`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=800&height=800&model=flux&nologo=true`);
+        const res = await fetch(`GET https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=800&height=800&model=flux&nologo=true`);
         const blob = await res.blob();
         
         const fileName = `ai-${Date.now()}.webp`;
