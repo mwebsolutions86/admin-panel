@@ -159,7 +159,7 @@ export default function PromotionEditor({
       newErrors.discountValue = 'La valeur de réduction doit être positive';
     }
 
-    if (formData.type === 'percentage' && formData.discountValue > 100) {
+    if (formData.discountType === 'percentage' && formData.discountValue > 100) {
       newErrors.discountValue = 'Le pourcentage ne peut pas dépasser 100%';
     }
 

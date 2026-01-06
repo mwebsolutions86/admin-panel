@@ -4,7 +4,7 @@
  * Support des pluriels, contextes, et validation qualité
  */
 
-import { createClient } from './supabase';
+import { supabase } from './supabase';
 import { LocalizationService, TranslationValue, SupportedLanguage, Market } from './localization-service';
 
 export interface TranslationValidation {
@@ -52,7 +52,7 @@ export interface TranslationQualityMetrics {
 
 export class TranslationManager {
   private static instance: TranslationManager;
-  private supabase = createClient();
+  private supabase = supabase;
   private localizationService = LocalizationService.getInstance();
   private validationRules: Map<string, ValidationRule> = new Map();
   private translationCache: Map<string, TranslationFile> = new Map();
@@ -708,11 +708,12 @@ export class TranslationManager {
       return result;
 
     } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
       return {
         success: false,
         imported: 0,
         skipped: 0,
-        errors: [error.message],
+        errors: [msg],
         warnings: []
       };
     }
@@ -866,7 +867,7 @@ export class TranslationManager {
         .eq('market', market)
         .single();
 
-      return !error && data;
+      return Boolean(data && !error);
     } catch (error) {
       return false;
     }

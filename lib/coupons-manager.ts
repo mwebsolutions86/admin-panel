@@ -17,7 +17,7 @@ import { performanceMonitor } from './performance-monitor';
 import { userCache, CacheUtils } from './cache-service';
 import { analyticsService } from './analytics-service';
 import { notificationsService } from './notifications-service';
-import { promotionsService, CouponCode, PromotionUsage } from './promotions-service';
+import { promotionsService, CouponCode, PromotionUsage, Promotion } from './promotions-service';
 
 // Types pour la gestion avancée des coupons
 export interface AdvancedCouponCode extends CouponCode {
@@ -95,7 +95,7 @@ export interface CouponBatch {
   generatedCodes: number;
   distributedCodes: number;
   usedCodes: number;
-  distributionChannels: string[];
+  distributionChannels: DistributionChannel['type'][];
   createdAt: string;
   distributedAt?: string;
   expiresAt: string;
@@ -137,6 +137,7 @@ export interface CouponValidationResponse {
     remaining: number;
     resetTime: string;
   };
+  appliedPromotion?: Promotion;
 }
 
 export interface CouponFraudDetection {
@@ -225,7 +226,7 @@ export class CouponsManager {
       customPrefix?: string;
       validUntil?: string;
       usageLimit?: number;
-      distributionChannels?: string[];
+      distributionChannels?: DistributionChannel['type'][];
       securityFeatures?: Partial<SecurityFeatures>;
       batchName?: string;
       description?: string;
@@ -313,7 +314,7 @@ export class CouponsManager {
       customCode?: string;
       validUntil?: string;
       usageLimit?: number;
-      distributionChannels?: string[];
+      distributionChannels?: DistributionChannel['type'][];
       securityFeatures?: Partial<SecurityFeatures>;
       referralInfo?: ReferralInfo;
     } = {}
@@ -773,7 +774,9 @@ export class CouponsManager {
         isValid: false,
         discount: 0,
         finalAmount: request.orderData?.totalAmount || 0,
-        reasons: ['Code invalide']
+        reasons: ['Code invalide'],
+        securityChecks: { passed: false, warnings: [], suspicious: false },
+        rateLimitInfo: this.getRateLimitInfo(request)
       };
     }
 
@@ -783,7 +786,9 @@ export class CouponsManager {
         isValid: false,
         discount: 0,
         finalAmount: request.orderData?.totalAmount || 0,
-        reasons: ['Code corrompu']
+        reasons: ['Code corrompu'],
+        securityChecks: { passed: false, warnings: [], suspicious: false },
+        rateLimitInfo: this.getRateLimitInfo(request)
       };
     }
 
@@ -838,7 +843,7 @@ export class CouponsManager {
     if (this.config.enableGeoValidation && request.location) {
       const geoCheck = await this.validateGeographicRestrictions(request);
       if (!geoCheck.allowed) {
-        warnings.push(geoCheck.reason);
+        if (geoCheck.reason) warnings.push(geoCheck.reason);
         suspicious = true;
       }
     }
@@ -853,7 +858,7 @@ export class CouponsManager {
   private async detectFraud(request: CouponValidationRequest): Promise<CouponFraudDetection> {
     const reasons: string[] = [];
     let riskScore = 0;
-    const actions: Array<{ type: string; message: string }> = [];
+    const actions: Array<{ type: 'block' | 'flag' | 'require_verification' | 'log_only'; message: string }> = [];
 
     // Détecter les patterns suspects
     if (await this.isBotActivity(request)) {
@@ -913,15 +918,15 @@ export class CouponsManager {
     await this.updateFraudPatterns(request);
 
     // Actions selon le niveau de risque
-    if (detection.riskScore >= 70) {
+    if (detection.riskScore >= 70 && request.ipAddress) {
       // Bloquer l'IP temporairement
       await this.blockIP(request.ipAddress, 24 * 60 * 60 * 1000); // 24h
     }
 
     // Track analytics
     await analyticsService.trackEvent({
-      type: 'fraud_attempt_detected',
-      category: 'security',
+      type: 'fraud_attempt_detected' as any,
+      category: 'security' as any,
       userId: request.userId,
       metadata: {
         code: request.code,
@@ -939,12 +944,13 @@ export class CouponsManager {
   }
 
   // Méthodes utilitaires supplémentaires
-  private initializeDistributionChannels(types: string[]): DistributionChannel[] {
+  private initializeDistributionChannels(types: DistributionChannel['type'][]): DistributionChannel[] {
     return types.map(type => ({
-      type: type as any,
+      type,
       isActive: true,
       distributionCount: 0,
-      usageCount: 0
+      usageCount: 0,
+      metadata: {}
     }));
   }
 
@@ -991,7 +997,7 @@ export class CouponsManager {
     return Math.random().toString(36).substr(2, 9);
   }
 
-  private async getRateLimitInfo(request: CouponValidationRequest): Promise<{ remaining: number; resetTime: string }> {
+  private getRateLimitInfo(request: CouponValidationRequest): { remaining: number; resetTime: string } {
     const key = request.userId || request.ipAddress || 'anonymous';
     const tracker = this.rateLimitTracker.get(key);
     

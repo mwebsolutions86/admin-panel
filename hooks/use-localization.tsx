@@ -9,7 +9,8 @@ import {
   localizationService, 
   SupportedLanguage, 
   Market,
-  LocalizationConfig
+  LocalizationConfig,
+  SUPPORTED_LANGUAGES
 } from '../lib/localization-service';
 import { translationManager, TranslationProgress } from '../lib/translation-manager';
 
@@ -51,14 +52,14 @@ export function LocalizationProvider({
 
   // Configuration du service
   useEffect(() => {
-    localizationService.config = {
+    localizationService.configure({
       currentLanguage,
       currentMarket,
       fallbackLanguage: 'fr',
       enableGeoDetection,
       cacheTranslations,
       enableRTL
-    };
+    });
   }, [defaultLanguage, defaultMarket, enableGeoDetection, cacheTranslations, enableRTL]);
 
   // Initialisation
@@ -68,19 +69,18 @@ export function LocalizationProvider({
         setIsLoading(true);
         setError(null);
 
-        // Initialiser le service de localisation
-        await localizationService.initialize();
+        // LocalizationService initializes itself when instantiated; proceed
 
         // Mettre à jour les états
         setCurrentLanguage(localizationService.getCurrentLanguage());
         setCurrentMarket(localizationService.getCurrentMarket());
-        setIsRTL(localizationService.isRTLLanguage(localizationService.getCurrentLanguage()));
+        setIsRTL(SUPPORTED_LANGUAGES.find(l => l.code === localizationService.getCurrentLanguage())?.direction === 'rtl');
 
         // Écouter les changements
         const handleChange = () => {
           setCurrentLanguage(localizationService.getCurrentLanguage());
           setCurrentMarket(localizationService.getCurrentMarket());
-          setIsRTL(localizationService.isRTLLanguage(localizationService.getCurrentLanguage()));
+          setIsRTL(SUPPORTED_LANGUAGES.find(l => l.code === localizationService.getCurrentLanguage())?.direction === 'rtl');
         };
 
         localizationService.addListener(handleChange);
@@ -89,7 +89,8 @@ export function LocalizationProvider({
           localizationService.removeListener(handleChange);
         };
       } catch (err) {
-        setError(err.message);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        setError(errorMessage);
       } finally {
         setIsLoading(false);
       }
@@ -104,7 +105,14 @@ export function LocalizationProvider({
     isRTL,
     supportedLanguages: localizationService.getSupportedLanguages(),
     supportedMarkets: localizationService.getSupportedMarkets(),
-    config: localizationService.config,
+    config: {
+      currentLanguage,
+      currentMarket,
+      fallbackLanguage: 'fr',
+      enableGeoDetection,
+      cacheTranslations,
+      enableRTL
+    },
     isLoading,
     error
   };
@@ -173,7 +181,8 @@ export function useSetLanguage() {
       setError(null);
       await localizationService.setLanguage(language);
     } catch (err) {
-      setError(err.message);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setError(errorMessage);
       throw err;
     } finally {
       setIsLoading(false);
@@ -194,7 +203,8 @@ export function useSetMarket() {
       setError(null);
       await localizationService.setMarket(market);
     } catch (err) {
-      setError(err.message);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setError(errorMessage);
       throw err;
     } finally {
       setIsLoading(false);
@@ -394,7 +404,8 @@ export function useTranslationStats() {
       const progressReports = await translationManager.generateProgressReport(languages, markets);
       setStats(progressReports);
     } catch (err) {
-      setError(err.message);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }

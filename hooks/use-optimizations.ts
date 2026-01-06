@@ -7,6 +7,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { performanceMonitor } from '@/lib/performance-monitor';
+import { supabase } from '@/lib/supabase';
 import { 
   productCache, 
   orderCache, 
@@ -87,21 +88,21 @@ export function useOptimizations() {
       // Précharger les catégories
       await dbOptimizer.optimizedQuery(
         'categories_all',
-        () => supabase.from('categories').select('*'),
+        async () => await supabase.from('categories').select('*'),
         30 * 60 * 1000 // 30 minutes
       );
 
       // Précharger les produits populaires
       await dbOptimizer.optimizedQuery(
         'popular_products',
-        () => supabase.from('products').select('*').eq('is_available', true).limit(50),
+        async () => await supabase.from('products').select('*').eq('is_available', true).limit(50),
         10 * 60 * 1000 // 10 minutes
       );
 
       // Précharger les stores actifs
       await dbOptimizer.optimizedQuery(
         'active_stores',
-        () => supabase.from('stores').select('*').eq('is_active', true),
+        async () => await supabase.from('stores').select('*').eq('is_active', true),
         15 * 60 * 1000 // 15 minutes
       );
 

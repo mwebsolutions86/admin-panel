@@ -15,7 +15,7 @@ import { loyaltyRewardsManager } from '../lib/loyalty-rewards-manager';
 import { analyticsService } from '../lib/analytics-service';
 import { notificationsService } from '../lib/notifications-service';
 import { performanceMonitor } from '../lib/performance-monitor';
-import { security } from '../lib/security-enhanced';
+import { securityManager as security } from '../lib/security-enhanced';
 
 // Types pour les requêtes API
 interface ApiResponse<T = any> {
@@ -800,21 +800,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 }
 
-// Export des handlers individuels pour utilisation directe
-export {
-  handleRegister,
-  handleGetUser,
-  handleUpdateUser,
-  handleAddPoints,
-  handleRedeemPoints,
-  handleGetRewards,
-  handleGetChallenges,
-  handleJoinChallenge,
-  handleGetAchievements,
-  handleCheckAchievements,
-  handleGetTransactions,
-  handleGetAnalytics,
-  handleProcessOrder,
-  handleProcessReferral,
-  handleProcessBirthday
-};
+// Handlers are exported where they are defined to avoid duplicate exports.

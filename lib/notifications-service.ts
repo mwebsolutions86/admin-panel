@@ -497,8 +497,8 @@ export class NotificationsService {
   private loadFromCache() {
     try {
       // Charger les appareils enregistrés
-      const cachedDevices = userCache.get('notification_devices');
-      if (cachedDevices) {
+      const cachedDevices = userCache.get<DeviceRegistration[]>('notification_devices');
+      if (cachedDevices && Array.isArray(cachedDevices)) {
         cachedDevices.forEach((device: DeviceRegistration) => {
           this.deviceRegistrations.set(device.id, device);
         });
@@ -648,6 +648,30 @@ export class NotificationsService {
     });
 
     return permission;
+  }
+
+  /**
+   * Envoie une notification directe (payload brut) en ajoutant un item à la queue
+   */
+  async sendRawNotification(payload: NotificationPayload, targetPlatforms: string[] = ['all']): Promise<void> {
+    const queueItem: NotificationQueueItem = {
+      id: `notification-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      userId: '',
+      templateId: undefined,
+      payload,
+      targetPlatforms,
+      scheduledAt: new Date().toISOString(),
+      attempts: 0,
+      maxAttempts: this.config.queue.maxRetries,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+
+    this.notificationQueue.push(queueItem);
+    if (!this.processingQueue) {
+      // start processing in background
+      this.processQueue();
+    }
   }
 
   /**

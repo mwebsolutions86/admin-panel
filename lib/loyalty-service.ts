@@ -210,6 +210,7 @@ const DEFAULT_LEVELS: LoyaltyLevel[] = [
     color: '#CD7F32',
     icon: '🥉',
     requirements: ['Créer un compte'],
+    benefits: [],
     description: 'Niveau d\'entrée avec réduction de 5%'
   },
   {
@@ -222,6 +223,7 @@ const DEFAULT_LEVELS: LoyaltyLevel[] = [
     color: '#C0C0C0',
     icon: '🥈',
     requirements: ['500 points minimum', '5 commandes'],
+    benefits: [],
     description: 'Réduction 10% + livraison gratuite'
   },
   {
@@ -234,6 +236,7 @@ const DEFAULT_LEVELS: LoyaltyLevel[] = [
     color: '#FFD700',
     icon: '🥇',
     requirements: ['2000 points minimum', '15 commandes'],
+    benefits: [],
     description: 'Réduction 15% + livraison gratuite + early access'
   },
   {
@@ -246,6 +249,7 @@ const DEFAULT_LEVELS: LoyaltyLevel[] = [
     color: '#E5E4E2',
     icon: '💎',
     requirements: ['5000 points minimum', '50 commandes'],
+    benefits: [],
     description: 'Réduction 20% + tous avantages + accès VIP'
   }
 ];
@@ -395,7 +399,7 @@ export class LoyaltyService {
 
       // Vérifier le cache système
       const cacheKey = `loyalty_user_${userId}`;
-      const systemCached = userCache.get(cacheKey);
+      const systemCached = userCache.get<LoyaltyUser>(cacheKey);
       if (systemCached) {
         this.userCache.set(userId, systemCached);
         return systemCached;

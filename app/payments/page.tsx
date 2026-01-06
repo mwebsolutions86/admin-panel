@@ -41,6 +41,7 @@ import {
   Shield
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { DateRange } from '@/types/analytics';
 import { mobilePaymentsService, MobilePaymentProvider, MobilePaymentTransaction } from '@/lib/mobile-payments-service';
 import { useMobilePayments } from '@/hooks/use-mobile-payments';
 import { MetricsCard } from '@/components/analytics/MetricsCard';
@@ -62,9 +63,9 @@ export default function PaymentsPage() {
   } = useMobilePayments();
 
   const [selectedProvider, setSelectedProvider] = useState<MobilePaymentProvider | null>(null);
-  const [dateRange, setDateRange] = useState({
-    from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-    to: new Date()
+  const [dateRange, setDateRange] = useState<DateRange>({
+    start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    end: new Date()
   });
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [providerFilter, setProviderFilter] = useState<string>('all');
@@ -99,8 +100,8 @@ export default function PaymentsPage() {
 
       // Charger les statistiques
       const stats = await mobilePaymentsService.getPaymentStatistics(
-        dateRange.from.toISOString(),
-        dateRange.to.toISOString()
+        dateRange.start.toISOString(),
+        dateRange.end.toISOString()
       );
       setStatistics(stats);
 
@@ -389,8 +390,8 @@ export default function PaymentsPage() {
                 <div>
                   <Label>Période</Label>
                   <DateRangePicker
-                    dateRange={dateRange}
-                    onDateRangeChange={setDateRange}
+                    value={dateRange}
+                    onChange={setDateRange}
                   />
                 </div>
               </div>

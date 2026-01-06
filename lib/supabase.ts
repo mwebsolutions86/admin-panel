@@ -10,3 +10,6 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
+
+// Re-export createClient for modules that expect it from './supabase'
+export { createClient } from '@supabase/supabase-js';

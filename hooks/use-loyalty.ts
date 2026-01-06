@@ -199,7 +199,7 @@ export function useRewards(userId: string | null): UseRewardsData {
         category: 'loyalty',
         userId,
         metadata: { rewardId, pointsCost: reward.pointsCost }
-      });
+      } as any);
 
       // Rafraîchir les données
       await fetchData();
@@ -288,7 +288,7 @@ export function useChallenges(userId: string | null): UseChallengesData {
         category: 'loyalty',
         userId,
         metadata: { challengeId }
-      });
+      } as any);
 
       // Rafraîchir les données
       await fetchData();
@@ -536,7 +536,7 @@ export function useLoyaltyActions(userId: string | null) {
           joinDate: user.joinDate,
           welcomeBonus: 50 // Config par défaut
         }
-      });
+      } as any);
 
       return user;
     } finally {
@@ -605,14 +605,4 @@ export function useGamificationSettings() {
   };
 }
 
-// Export des hooks
-export {
-  useLoyalty,
-  useRewards,
-  useChallenges,
-  useAchievements,
-  useTransactions,
-  useLoyaltyComplete,
-  useLoyaltyActions,
-  useGamificationSettings
-};
+// Hooks are exported inline where they are defined.

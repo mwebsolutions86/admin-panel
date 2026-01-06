@@ -127,7 +127,7 @@ export class TaxService {
     category: 'standard' | 'reduced' | 'super_reduced' | 'exempt' | 'zero' = 'standard',
     isRecoverable: boolean = true
   ): VATCalculation {
-    let vatRate: number;
+    let vatRate: number | null;
     let baseAmount: number;
 
     switch (category) {
@@ -370,6 +370,7 @@ export class TaxService {
         await accountingService.createEntry({
           date: vatReport.dueDate,
           journal: 'TVA',
+          entryNumber: `VAT_${vatReport.periodId}_${this.generateId()}`,
           description: `TVA collectée - ${vatReport.periodId}`,
           reference: `TVA_${vatReport.periodId}`,
           amount: vatReport.vatOnSales,
@@ -379,6 +380,8 @@ export class TaxService {
           isPosted: false,
           isReversed: false,
           lines: [{
+            id: this.generateId(),
+            date: vatReport.dueDate,
             accountId: await this.getAccountId(storeId, '445'),
             accountCode: '445',
             accountName: 'État - TVA facturée',
@@ -394,6 +397,7 @@ export class TaxService {
       if (vatReport.vatOnPurchases > 0) {
         await accountingService.createEntry({
           date: vatReport.dueDate,
+          entryNumber: `VAT_${vatReport.periodId}_${this.generateId()}`,
           journal: 'TVA',
           description: `TVA déductible - ${vatReport.periodId}`,
           reference: `TVA_${vatReport.periodId}`,
@@ -404,6 +408,8 @@ export class TaxService {
           isPosted: false,
           isReversed: false,
           lines: [{
+            id: this.generateId(),
+            date: vatReport.dueDate,
             accountId: await this.getAccountId(storeId, '4457'),
             accountCode: '4457',
             accountName: 'État - TVA récupérable',
@@ -420,6 +426,7 @@ export class TaxService {
         await accountingService.createEntry({
           date: vatReport.dueDate,
           journal: 'TVA',
+          entryNumber: `VAT_PAY_${vatReport.periodId}_${this.generateId()}`,
           description: `Règlement TVA - ${vatReport.periodId}`,
           reference: `TVA_PAY_${vatReport.periodId}`,
           amount: vatReport.vatPayable,
@@ -430,6 +437,8 @@ export class TaxService {
           isReversed: false,
           lines: [
             {
+              id: this.generateId(),
+              date: vatReport.dueDate,
               accountId: await this.getAccountId(storeId, '4456'),
               accountCode: '4456',
               accountName: 'État - TVA due',
@@ -439,6 +448,8 @@ export class TaxService {
               storeId
             },
             {
+              id: this.generateId(),
+              date: vatReport.dueDate,
               accountId: await this.getAccountId(storeId, '571'),
               accountCode: '571',
               accountName: 'Banques',

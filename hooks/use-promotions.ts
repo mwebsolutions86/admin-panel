@@ -160,17 +160,17 @@ export function usePromotions(userId: string | null, location?: { lat: number; l
 
       if (result.isValid) {
         // Track analytics
-        await analyticsService.trackEvent({
-          type: 'promotion_applied',
-          category: 'promotion',
-          userId,
-          metadata: {
-            promotionId,
-            discount: result.discount,
-            finalAmount: result.finalAmount,
-            stackingApplied: result.stackingApplied
-          }
-        });
+          await analyticsService.trackEvent({
+            type: 'promotion_applied',
+            category: 'promotion',
+            userId,
+            metadata: {
+              promotionId,
+              discount: result.discount,
+              finalAmount: result.finalAmount,
+              stackingApplied: result.stackingApplied
+            }
+          } as any);
 
         performanceMonitor.info('Promotion appliquée', {
           userId,
@@ -739,12 +739,4 @@ export function useRecommendedPromotions(userId: string | null) {
   };
 }
 
-// Export des hooks
-export {
-  usePromotions,
-  useCouponValidation,
-  useCouponAnalytics,
-  useCampaigns,
-  usePromotionsActions,
-  useRecommendedPromotions
-};
+// Hooks are exported inline where they are defined.

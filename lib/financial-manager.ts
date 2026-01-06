@@ -41,7 +41,7 @@ import {
   ExchangeRate,
   Currency,
   AccountingPeriod,
-  CashFlow as CashFlowType
+  
 } from '@/types/accounting';
 
 export class FinancialManager {
@@ -368,6 +368,7 @@ export class FinancialManager {
             storeId,
             type: 'inflow',
             category: 'Ventes prévues',
+            paymentMethod: 'unknown',
             amount: expectedInflow,
             description: `Prévision ventes ${forecastDate.toLocaleDateString('fr-FR')}`,
             createdBy: 'system',
@@ -384,6 +385,7 @@ export class FinancialManager {
             storeId,
             type: 'outflow',
             category: 'Charges prévues',
+            paymentMethod: 'unknown',
             amount: expectedOutflow,
             description: `Prévision charges ${forecastDate.toLocaleDateString('fr-FR')}`,
             createdBy: 'system',
@@ -802,7 +804,8 @@ export class FinancialManager {
     const historicalData = await this.getHistoricalSpending(storeId, fiscalYear, referenceYears);
     
     // Analyser les tendances et projeter
-    return Object.entries(historicalData).map(([accountCode, data]) => ({
+    const entries = Object.entries(historicalData as any) as [string, any][];
+    return entries.map(([accountCode, data]) => ({
       accountId: data.accountId,
       accountCode,
       accountName: data.accountName,

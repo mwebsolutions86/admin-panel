@@ -1082,8 +1082,8 @@ export class SuppliersManager {
           
           // Si on est dans la fenêtre de temps et que la règle n'a pas été déclenchée aujourd'hui
           const today = new Date().toDateString();
-          const lastTriggered = rule.last_triggered ? new Date(rule.last_triggered).toDateString();
-          
+          const lastTriggered = rule.last_triggered ? new Date(rule.last_triggered).toDateString() : null;
+
           return now >= targetTime && today !== lastTriggered;
         default:
           return false;
@@ -1253,7 +1253,7 @@ export class SuppliersManager {
   private generateFilterKey(filters?: SupplierFilters): string {
     if (!filters) return 'default';
     
-    const parts = [];
+    const parts: string[] = [];
     if (filters.status?.length) parts.push(`status:${filters.status.join(',')}`);
     if (filters.type?.length) parts.push(`type:${filters.type.join(',')}`);
     if (filters.location) parts.push(`location:${filters.location}`);

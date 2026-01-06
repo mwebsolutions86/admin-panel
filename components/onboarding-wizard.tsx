@@ -36,7 +36,7 @@ export function OnboardingWizard({ userId, onComplete }: OnboardingWizardProps) 
     console.log("🚀 DÉMARRAGE ONBOARDING pour User:", userId)
 
     try {
-      let logoUrl = null
+      let logoUrl: string | null = null
 
       if (logoFile) {
         console.log("1️⃣ Upload du logo en cours...")

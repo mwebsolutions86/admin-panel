@@ -31,6 +31,19 @@ interface TransactionsHistoryProps {
   hasMore?: boolean;
 }
 
+  // Configuration des types de transaction (module scope)
+  function getTransactionConfig(type: string) {
+    const configs: Record<string, { icon: string; color: string; bg: string; border: string; label: string }> = {
+      earned: { icon: '💰', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200', label: 'Points gagnés' },
+      redeemed: { icon: '🎁', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', label: 'Points utilisés' },
+      expired: { icon: '⏰', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', label: 'Points expirés' },
+      bonus: { icon: '🎉', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200', label: 'Bonus' },
+      referral: { icon: '👥', color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-200', label: 'Parrainage' },
+      level_up: { icon: '⬆️', color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200', label: 'Montée de niveau' }
+    };
+    return configs[type as keyof typeof configs] || configs.earned;
+  }
+
 export function TransactionsHistory({ 
   transactions, 
   showFullHistory = false,
@@ -95,54 +108,7 @@ export function TransactionsHistory({
     return filtered;
   }, [transactions, filterType, filterPeriod, sortOrder]);
 
-  // Obtenir la configuration du type de transaction
-  const getTransactionConfig = (type: string) => {
-    const configs = {
-      earned: {
-        icon: '💰',
-        color: 'text-green-600',
-        bg: 'bg-green-50',
-        border: 'border-green-200',
-        label: 'Points gagnés'
-      },
-      redeemed: {
-        icon: '🎁',
-        color: 'text-blue-600',
-        bg: 'bg-blue-50',
-        border: 'border-blue-200',
-        label: 'Points utilisés'
-      },
-      expired: {
-        icon: '⏰',
-        color: 'text-red-600',
-        bg: 'bg-red-50',
-        border: 'border-red-200',
-        label: 'Points expirés'
-      },
-      bonus: {
-        icon: '🎉',
-        color: 'text-purple-600',
-        bg: 'bg-purple-50',
-        border: 'border-purple-200',
-        label: 'Bonus'
-      },
-      referral: {
-        icon: '👥',
-        color: 'text-indigo-600',
-        bg: 'bg-indigo-50',
-        border: 'border-indigo-200',
-        label: 'Parrainage'
-      },
-      level_up: {
-        icon: '⬆️',
-        color: 'text-yellow-600',
-        bg: 'bg-yellow-50',
-        border: 'border-yellow-200',
-        label: 'Montée de niveau'
-      }
-    };
-    return configs[type as keyof typeof configs] || configs.earned;
-  };
+  // (getTransactionConfig moved to module scope)
 
   // Formatter la date
   const formatDate = (dateString: string) => {

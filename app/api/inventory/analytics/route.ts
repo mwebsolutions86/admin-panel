@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
 
 // Fonctions utilitaires pour générer les rapports
 function generateRecommendations(analytics: any): string[] {
-  const recommendations = [];
+  const recommendations: string[] = [];
 
   // Recommandations basées sur le stock faible
   if (analytics.lowStockItems > 0) {

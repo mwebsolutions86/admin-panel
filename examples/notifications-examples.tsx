@@ -271,10 +271,10 @@ export class PromotionNotificationExamples {
     const casablancaUsers = userSegmentationService.getSegmentUsers('casablanca-users');
     
     for (const userId of casablancaUsers) {
-      // Vérifier les préférences utilisateur
+      // Vérifier les préférences utilisateur (propriété promotions peut ne pas exister)
       const profile = userSegmentationService.getUserProfile(userId);
-      if (profile?.preferences?.notifications?.promotions) {
-        
+      const notifications = (profile?.preferences?.notifications as any) ?? {};
+      if (notifications.promotions) {
         await notificationsService.sendNotificationFromTemplate(
           'promotion-special',
           {
@@ -412,8 +412,10 @@ export class SystemNotificationExamples {
 
     // Envoyer à tous les utilisateurs
     const allUsers = userSegmentationService.getUserSegments('push-enabled');
-    
-    for (const userId of allUsers) {
+
+    for (const u of allUsers) {
+      const userId = typeof u === 'string' ? u : (u as any).id || (u as any).userId || (u as any).user || '';
+      if (!userId) continue;
       await notificationsService.sendCustomNotification(payload, userId);
     }
   }
@@ -534,11 +536,10 @@ export class MarketingCampaignExamples {
       
       for (const userId of targetUsers) {
         const profile = userSegmentationService.getUserProfile(userId);
-        
+        const notifications = (profile?.preferences?.notifications as any) ?? {};
+
         // Vérifier les préférences et l'activité récente
-        if (profile?.preferences?.notifications?.promotions && 
-            profile.behavior?.orderFrequency === 'high') {
-          
+        if (profile && notifications.promotions && profile.behavior?.orderFrequency === 'high') {
           await notificationsService.sendNotificationFromTemplate(
             'promotion-special',
             {

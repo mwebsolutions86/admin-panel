@@ -532,8 +532,9 @@ class MobilePaymentsSecurity {
       filteredAudit = filteredAudit.filter(audit => audit.action === filters.action);
     }
 
-    if (filters?.riskScoreMin !== undefined) {
-      filteredAudit = filteredAudit.filter(audit => audit.riskScore >= filters.riskScoreMin);
+    if (filters && filters.riskScoreMin !== undefined) {
+      const minRisk = filters.riskScoreMin;
+      filteredAudit = filteredAudit.filter(audit => audit.riskScore >= minRisk);
     }
 
     if (filters?.dateFrom) {

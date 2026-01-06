@@ -69,26 +69,26 @@ import {
 
 // Icônes simplifiées
 const Icon = {
-  Settings: () => <span>⚙️</span>,
-  Users: () => <span>👥</span>,
-  FileText: () => <span>📄</span>,
-  Calculator: () => <span>🧮</span>,
-  BarChart3: () => <span>📊</span>,
-  TrendingUp: () => <span>📈</span>,
-  AlertTriangle: () => <span>⚠️</span>,
-  CheckCircle: () => <span>✅</span>,
-  Clock: () => <span>🕐</span>,
-  DollarSign: () => <span>💰</span>,
-  Download: () => <span>⬇️</span>,
-  Plus: () => <span>➕</span>,
-  Edit: () => <span>✏️</span>,
-  Trash2: () => <span>🗑️</span>,
-  RefreshCw: () => <span>🔄</span>,
-  Shield: () => <span>🛡️</span>,
-  Database: () => <span>🗄️</span>,
-  Calendar: () => <span>📅</span>,
-  Mail: () => <span>📧</span>,
-  Phone: () => <span>📞</span>
+  Settings: ({ className = "" }: { className?: string }) => <span className={className}>⚙️</span>,
+  Users: ({ className = "" }: { className?: string }) => <span className={className}>👥</span>,
+  FileText: ({ className = "" }: { className?: string }) => <span className={className}>📄</span>,
+  Calculator: ({ className = "" }: { className?: string }) => <span className={className}>🧮</span>,
+  BarChart3: ({ className = "" }: { className?: string }) => <span className={className}>📊</span>,
+  TrendingUp: ({ className = "" }: { className?: string }) => <span className={className}>📈</span>,
+  AlertTriangle: ({ className = "" }: { className?: string }) => <span className={className}>⚠️</span>,
+  CheckCircle: ({ className = "" }: { className?: string }) => <span className={className}>✅</span>,
+  Clock: ({ className = "" }: { className?: string }) => <span className={className}>🕐</span>,
+  DollarSign: ({ className = "" }: { className?: string }) => <span className={className}>💰</span>,
+  Download: ({ className = "" }: { className?: string }) => <span className={className}>⬇️</span>,
+  Plus: ({ className = "" }: { className?: string }) => <span className={className}>➕</span>,
+  Edit: ({ className = "" }: { className?: string }) => <span className={className}>✏️</span>,
+  Trash2: ({ className = "" }: { className?: string }) => <span className={className}>🗑️</span>,
+  RefreshCw: ({ className = "" }: { className?: string }) => <span className={className}>🔄</span>,
+  Shield: ({ className = "" }: { className?: string }) => <span className={className}>🛡️</span>,
+  Database: ({ className = "" }: { className?: string }) => <span className={className}>🗄️</span>,
+  Calendar: ({ className = "" }: { className?: string }) => <span className={className}>📅</span>,
+  Mail: ({ className = "" }: { className?: string }) => <span className={className}>📧</span>,
+  Phone: ({ className = "" }: { className?: string }) => <span className={className}>📞</span>
 };
 
 /**
@@ -198,7 +198,7 @@ export function FinancialAdministration({ storeId, className }: FinancialAdminis
             <StatusCard
               title="Budgets Actifs"
               status="active"
-              description={`${budgets.filter(b => b.status === 'active').length} budgets actifs`}
+              description={`${budgets.filter((b: Budget) => b.status === 'active').length} budgets actifs`}
               icon={<Icon.BarChart3 />}
               action={
                 <Button size="sm" onClick={() => setShowCreateBudgetDialog(true)}>
@@ -443,7 +443,7 @@ function PlanComptableManagement({ storeId, chartOfAccounts, onCreateChart }: Pl
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">
-                {chartOfAccounts.accounts?.filter(a => a.isActive).length || 0}
+                {chartOfAccounts.accounts?.filter((a: Account) => a.isActive).length || 0}
               </div>
               <div className="text-sm text-muted-foreground">Comptes Actifs</div>
             </div>
@@ -477,7 +477,7 @@ interface AccountsByClassProps {
 }
 
 function AccountsByClass({ accounts }: AccountsByClassProps) {
-  const accountsByClass = accounts.reduce((acc, account) => {
+  const accountsByClass = accounts.reduce((acc: Record<string, Account[]>, account: Account) => {
     const classNumber = account.code.charAt(0);
     if (!acc[classNumber]) {
       acc[classNumber] = [];
@@ -517,7 +517,7 @@ function AccountsByClass({ accounts }: AccountsByClassProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {classAccounts.map((account) => (
+                {classAccounts.map((account: Account) => (
                   <TableRow key={account.id}>
                     <TableCell className="font-mono">{account.code}</TableCell>
                     <TableCell>{account.name}</TableCell>
@@ -569,7 +569,7 @@ function BudgetsManagement({ storeId, budgets, onCreateBudget }: BudgetsManageme
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {budgets.map((budget) => (
+        {budgets.map((budget: Budget) => (
           <BudgetCard key={budget.id} budget={budget} />
         ))}
       </div>
@@ -655,9 +655,11 @@ function BudgetCard({ budget }: BudgetCardProps) {
                   <Icon.Download className="h-4 w-4 mr-2" />
                   Exporter
                 </DropdownMenuItem>
-                <DropdownMenuItem className="text-red-600">
-                  <Icon.Trash2 className="h-4 w-4 mr-2" />
-                  Supprimer
+                <DropdownMenuItem>
+                  <span className="text-red-600">
+                    <Icon.Trash2 className="h-4 w-4 mr-2" />
+                    Supprimer
+                  </span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -854,7 +856,7 @@ function SecuritySettings({ storeId }: SecuritySettingsProps) {
                   <div>
                     <div className="font-medium">Validation Double des Écritures</div>
                     <div className="text-sm text-muted-foreground">
-                      Exiger une double validation pour les écritures > 10,000 MAD
+                      Exiger une double validation pour les écritures &gt; 10,000 MAD
                     </div>
                   </div>
                   <Switch defaultChecked />

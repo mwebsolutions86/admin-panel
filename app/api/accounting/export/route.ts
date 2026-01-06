@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import accountingService from '@/lib/accounting-service';
+import { supabase } from '@/lib/supabase';
 import financialManager from '@/lib/financial-manager';
 import { ExportConfig, ExportFormat } from '@/types/accounting';
 

@@ -57,6 +57,12 @@ class PerformanceMonitor {
     };
   }
 
+  // Complementary endTimer method used in some callers
+  endTimer(operation: string) {
+    // Simply log the end of operation; callers that need duration should use startTimer
+    this.debug(`End timer called for operation "${operation}"`);
+  }
+
   async measureDatabaseQuery<T>(
     queryName: string,
     queryFn: () => Promise<T>
@@ -83,14 +89,16 @@ class PerformanceMonitor {
 
   // Enregistrement des métriques
   private recordMetric(metric: keyof Omit<PerformanceMetrics, 'timestamp'>, value: number) {
+    const prev = this.metrics[this.metrics.length - 1] || {} as PerformanceMetrics;
+
     const metricEntry: PerformanceMetrics = {
+      ...prev,
       apiResponseTime: 0,
       databaseQueryTime: 0,
       cacheHitRate: 0,
       memoryUsage: 0,
       errorRate: 0,
-      timestamp: new Date().toISOString(),
-      ...this.metrics[this.metrics.length - 1] || {}
+      timestamp: new Date().toISOString()
     };
 
     metricEntry[metric] = value;

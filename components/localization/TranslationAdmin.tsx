@@ -20,7 +20,8 @@ import {
   LocalizedText, 
   LocalizedButton, 
   LocalizedError,
-  LocalizedSuccess 
+  LocalizedSuccess,
+  LocalizedLabel
 } from './LocalizedText';
 import { LanguageSelector } from './LanguageSelector';
 import { localeFormatter } from '../../lib/locale-formatter';
@@ -108,7 +109,7 @@ export const TranslationAdmin: React.FC<TranslationAdminProps> = ({ className })
         setError(response.error || 'Erreur lors du chargement des traductions');
       }
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -180,7 +181,7 @@ export const TranslationAdmin: React.FC<TranslationAdminProps> = ({ className })
         setError(response.error || 'Erreur lors de la sauvegarde');
       }
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -210,7 +211,7 @@ export const TranslationAdmin: React.FC<TranslationAdminProps> = ({ className })
         setError(response.error || 'Erreur lors de la suppression');
       }
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -246,7 +247,7 @@ export const TranslationAdmin: React.FC<TranslationAdminProps> = ({ className })
         setError(response.error || 'Erreur lors de l\'import');
       }
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -283,7 +284,7 @@ export const TranslationAdmin: React.FC<TranslationAdminProps> = ({ className })
         setError(response.error || 'Erreur lors de l\'export');
       }
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -344,7 +345,6 @@ export const TranslationAdmin: React.FC<TranslationAdminProps> = ({ className })
           translationKey="admin.localization.success"
           params={{ success }}
           variant="alert"
-          onClose={() => setSuccess(null)}
         />
       )}
 
@@ -606,8 +606,8 @@ export const TranslationAdmin: React.FC<TranslationAdminProps> = ({ className })
             setEditingTranslation(null);
             setShowAddForm(false);
           }}
-          defaultLanguage={filters.language}
-          defaultMarket={filters.market}
+          defaultLanguage={filters.language || 'fr'}
+          defaultMarket={filters.market || 'FR'}
         />
       )}
 
@@ -617,8 +617,8 @@ export const TranslationAdmin: React.FC<TranslationAdminProps> = ({ className })
           onImport={handleImport}
           onExport={handleExport}
           onClose={() => setShowImportExport(false)}
-          currentLanguage={filters.language}
-          currentMarket={filters.market}
+          currentLanguage={filters.language || 'fr'}
+          currentMarket={filters.market || 'FR'}
           loading={loading}
         />
       )}
@@ -929,8 +929,10 @@ const ImportExportModal: React.FC<ImportExportModalProps> = ({
                   onChange={(e) => setImportContent(e.target.value)}
                   rows={10}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  placeholder={translate('admin.localization.importPlaceholder')}
                 />
+                <div className="text-sm text-gray-500 mt-2">
+                  <LocalizedText translationKey="admin.localization.importPlaceholder" />
+                </div>
               </div>
 
               <div className="flex justify-end space-x-3">

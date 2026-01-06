@@ -4,6 +4,8 @@
  */
 
 import { performanceMonitor } from './performance-monitor';
+import { supabase } from './supabase';
+import { productCache } from './cache-service';
 
 export interface TestResult {
   id: string;
@@ -188,7 +190,7 @@ class TestRunner {
     status: number;
     error?: string;
   }>> {
-    const results = [];
+    const results: Array<{ test: APITest; passed: boolean; responseTime: number; status: number; error?: string }> = [];
 
     for (const test of tests) {
       const startTime = performance.now();
@@ -255,6 +257,11 @@ class TestRunner {
     }
 
     return { status: 200 };
+  }
+
+  // Backward-compatible alias expected by some callers
+  private async simulateAPICall(test: APITest): Promise<{ status: number; data?: any }> {
+    return this.simulateAPITest(test);
   }
 
   // Méthodes d'assertion

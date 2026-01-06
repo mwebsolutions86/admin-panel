@@ -52,7 +52,7 @@ import {
 
 export class AccountingService {
   private static instance: AccountingService;
-  private chartOfAccountsCache = new Map<string, ChartOfAccounts>();
+  private chartOfAccountsCache = new Map<string, { data: ChartOfAccounts; timestamp: number; ttl: number }>();
   private readonly CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
   // Plan comptable marocain par défaut pour restaurants
@@ -89,9 +89,6 @@ export class AccountingService {
     '448': { name: 'État - Autres impôts et taxes', category: 'state', allowPosting: true },
     '401': { name: 'Fournisseurs', category: 'suppliers', allowPosting: true },
     '403': { name: 'Fournisseurs - Effets à payer', category: 'suppliers', allowPosting: true },
-    '421': { name: 'Personnel - Avances', category: 'personnel', allowPosting: true },
-    '431': { name: 'Organismes sociaux', category: 'state', allowPosting: true },
-    '445': { name: 'État - Taxes sur le chiffre d\'affaires', category: 'state', allowPosting: true },
     '455': { name: 'Associés - Comptes courants', category: 'others_creditors', allowPosting: true },
     '461': { name: 'Débiteurs divers', category: 'others_debtors', allowPosting: true },
     '465': { name: 'Créances sur cessions d\'immobilisations', category: 'others_debtors', allowPosting: true },
@@ -270,7 +267,7 @@ export class AccountingService {
         code,
         name: account.name,
         name_fr: account.name,
-        type: this.mapCategoryToType(account.category),
+        type: this.mapCategoryToType(account.category as AccountCategory),
         category: account.category,
         parent_account_id: null,
         level: code.length,
@@ -504,19 +501,20 @@ export class AccountingService {
       if (!orderData) return;
 
       // Créer l'écriture de vente
-      const salesEntry = await this.createEntry({
-        date: orderData.created_at,
-        journal: 'VT',
-        description: `Vente commande ${orderData.order_number}`,
-        reference: `ORDER_${orderId}`,
-        amount: orderData.total_amount,
-        currency: 'MAD',
-        storeId: orderData.store_id,
-        createdBy: 'system',
-        isPosted: false,
-        isReversed: false,
-        lines: []
-      });
+        const salesEntry = await this.createEntry({
+          entryNumber: `INV-${orderData.order_number || Date.now()}`,
+          date: orderData.created_at,
+          journal: 'VT',
+          description: `Vente commande ${orderData.order_number}`,
+          reference: `ORDER_${orderData.id || Date.now()}`,
+          amount: orderData.total_amount,
+          currency: 'MAD',
+          storeId: orderData.store_id,
+          createdBy: 'system',
+          isPosted: false,
+          isReversed: false,
+          lines: []
+        });
 
       // Ligne produits (crédit)
       await this.addEntryLines(salesEntry.id, [{
@@ -525,8 +523,7 @@ export class AccountingService {
         accountName: 'Ventes de marchandises',
         debit: 0,
         credit: orderData.total_amount - orderData.tax_amount,
-        description: `Vente commande ${orderData.order_number}`,
-        storeId: orderData.store_id
+        description: `Vente commande ${orderData.order_number}`
       }]);
 
       // Ligne TVA (crédit)
@@ -537,8 +534,7 @@ export class AccountingService {
           accountName: 'État - TVA facturée',
           debit: 0,
           credit: orderData.tax_amount,
-          description: `TVA commande ${orderData.order_number}`,
-          storeId: orderData.store_id
+          description: `TVA commande ${orderData.order_number}`
         }]);
       }
 
@@ -549,8 +545,7 @@ export class AccountingService {
         accountName: 'Clients',
         debit: orderData.total_amount,
         credit: 0,
-        description: `Client commande ${orderData.order_number}`,
-        storeId: orderData.store_id
+        description: `Client commande ${orderData.order_number}`
       }]);
 
       performanceMonitor.info('Écritures de vente générées', { orderId, entryId: salesEntry.id });
@@ -572,6 +567,7 @@ export class AccountingService {
   async generatePaymentEntries(orderData: any): Promise<void> {
     try {
       const paymentEntry = await this.createEntry({
+        entryNumber: `PAY-${orderData.order_number || Date.now()}`,
         date: orderData.paid_at || orderData.created_at,
         journal: 'BK',
         description: `Encaissement commande ${orderData.order_number}`,
@@ -600,8 +596,7 @@ export class AccountingService {
         accountName: this.getAccountName(cashAccount),
         debit: orderData.total_amount,
         credit: 0,
-        description: `Encaissement ${orderData.payment_method}`,
-        storeId: orderData.store_id
+        description: `Encaissement ${orderData.payment_method}`
       }]);
 
       // Ligne client (crédit)
@@ -611,8 +606,7 @@ export class AccountingService {
         accountName: 'Clients',
         debit: 0,
         credit: orderData.total_amount,
-        description: `Règlement client commande ${orderData.order_number}`,
-        storeId: orderData.store_id
+        description: `Règlement client commande ${orderData.order_number}`
       }]);
 
       performanceMonitor.info('Écritures de paiement générées', { orderId: orderData.id, entryId: paymentEntry.id });
@@ -705,7 +699,7 @@ export class AccountingService {
       // Récupérer tous les comptes du plan comptable
       const chart = await this.getChartOfAccounts(storeId);
       
-      const accounts: TrialBalanceAccount[] = [];
+      const accounts: any[] = [];
       let totalDebit = 0;
       let totalCredit = 0;
 
@@ -1356,7 +1350,7 @@ export class AccountingService {
     return Math.random().toString(36).substr(2, 9);
   }
 
-  private getFromCache(key: string): any {
+  private getFromCache(key: string): ChartOfAccounts | null {
     const cached = this.chartOfAccountsCache.get(key);
     if (cached && Date.now() - cached.timestamp < cached.ttl) {
       return cached.data;

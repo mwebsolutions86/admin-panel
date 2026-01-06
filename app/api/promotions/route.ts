@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
 
     // Track analytics
     await analyticsService.trackEvent({
-      type: 'promotion_created_api',
+      type: 'promotion_created',
       category: 'promotion',
       userId: createdBy,
       metadata: {

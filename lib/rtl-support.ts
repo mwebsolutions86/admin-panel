@@ -257,16 +257,17 @@ export class RTLSupport {
   private setupFormDirections(): void {
     const inputs = document.querySelectorAll('input, textarea, select');
     inputs.forEach(input => {
+      const el = input as HTMLElement;
       if (this.settings.currentDirection === 'rtl') {
-        input.style.textAlign = 'right';
-        if (input.type === 'number') {
-          input.style.direction = 'ltr'; // Les nombres restent LTR
+        el.style.textAlign = 'right';
+        if (input instanceof HTMLInputElement && input.type === 'number') {
+          el.style.direction = 'ltr'; // Les nombres restent LTR
         } else {
-          input.style.direction = 'rtl';
+          el.style.direction = 'rtl';
         }
       } else {
-        input.style.textAlign = '';
-        input.style.direction = '';
+        el.style.textAlign = '';
+        el.style.direction = '';
       }
     });
   }
@@ -281,7 +282,7 @@ export class RTLSupport {
       this.applyRTLClasses();
       this.mirrorIcons();
       this.adaptLayoutForRTL();
-      this.setupRTLCSS();
+      this.injectRTLStyles();
     } else {
       this.removeRTLClasses();
       this.resetToLTR();

@@ -4,7 +4,7 @@
  * Support CRUD, import/export, validation et analytics
  */
 
-import { createClient } from './supabase';
+import { supabase } from './supabase';
 import { translationManager, TranslationProgress } from './translation-manager';
 import { localizationService, SupportedLanguage, Market } from './localization-service';
 import { localeFormatter } from './locale-formatter';
@@ -78,7 +78,7 @@ export interface BatchTranslationUpdate {
 }
 
 export class LocalizationAPI {
-  private supabase = createClient();
+  private supabase = supabase;
 
   /**
    * Obtient la liste des traductions avec filtres et pagination
@@ -140,7 +140,7 @@ export class LocalizationAPI {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -167,7 +167,7 @@ export class LocalizationAPI {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -236,7 +236,7 @@ export class LocalizationAPI {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -303,7 +303,7 @@ export class LocalizationAPI {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -329,7 +329,7 @@ export class LocalizationAPI {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -389,7 +389,7 @@ export class LocalizationAPI {
           results.success++;
         } catch (error) {
           results.failed++;
-          results.errors.push(`Erreur pour ${translation.key}: ${error.message}`);
+          results.errors.push(`Erreur pour ${translation.key}: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
 
@@ -401,7 +401,7 @@ export class LocalizationAPI {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -437,7 +437,7 @@ export class LocalizationAPI {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -472,7 +472,7 @@ export class LocalizationAPI {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -485,7 +485,7 @@ export class LocalizationAPI {
       const stats = await translationManager.getTranslationStatistics();
       
       // Enrichir avec des données supplémentaires
-      const enrichedStats: TranslationStats = {
+      const enrichedStats: any = {
         ...stats,
         completionRates: await this.calculateCompletionRates(),
         qualityScores: await this.calculateQualityScores(),
@@ -500,7 +500,7 @@ export class LocalizationAPI {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -522,7 +522,7 @@ export class LocalizationAPI {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -579,7 +579,7 @@ export class LocalizationAPI {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -604,7 +604,7 @@ export class LocalizationAPI {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -630,7 +630,7 @@ export class LocalizationAPI {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -669,7 +669,7 @@ export class LocalizationAPI {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -738,7 +738,7 @@ export class LocalizationAPI {
     } catch (error) {
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -871,7 +871,7 @@ export class LocalizationAPI {
   }
 
   private levenshteinDistance(str1: string, str2: string): number {
-    const matrix = [];
+    const matrix: number[][] = [];
     
     for (let i = 0; i <= str2.length; i++) {
       matrix[i] = [i];

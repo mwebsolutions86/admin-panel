@@ -766,9 +766,33 @@ function NotificationsSettings({
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
               </label>
+            ) : key === 'quietHours' ? (
+              <div className="flex items-center space-x-2">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={Boolean((value as any).enabled)}
+                    onChange={(e) => onUpdate(key, { ...(value as any), enabled: e.target.checked })}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm">Activé</span>
+                </label>
+                <input
+                  type="time"
+                  value={(value as any).start || ''}
+                  onChange={(e) => onUpdate(key, { ...(value as any), start: e.target.value })}
+                  className="px-2 py-1 border border-gray-300 rounded"
+                />
+                <input
+                  type="time"
+                  value={(value as any).end || ''}
+                  onChange={(e) => onUpdate(key, { ...(value as any), end: e.target.value })}
+                  className="px-2 py-1 border border-gray-300 rounded"
+                />
+              </div>
             ) : (
               <select
-                value={value}
+                value={String(value)}
                 onChange={(e) => onUpdate(key, e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
@@ -821,7 +845,7 @@ function IntegrationsSettings({
                 <label className="flex items-center cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={value}
+                    checked={Boolean(value)}
                     onChange={(e) => onUpdate(key, e.target.checked)}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
@@ -881,7 +905,7 @@ function PerformanceSettings({
               <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={value}
+                  checked={Boolean(value)}
                   onChange={(e) => onUpdate(key, e.target.checked)}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
@@ -937,7 +961,7 @@ function BackupSettings({
               <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={value}
+                  checked={Boolean(value)}
                   onChange={(e) => onUpdate(key, e.target.checked)}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />

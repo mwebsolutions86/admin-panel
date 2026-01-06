@@ -14,7 +14,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { InventoryAnalytics } from '../../lib/inventory-service';
-import { Supplier, useSuppliers } from '../../hooks/use-inventory';
+import { Supplier } from '../../lib/suppliers-manager';
+import { useSuppliers } from '../../hooks/use-inventory';
 
 interface InventoryReportsProps {
   storeId: string;
@@ -306,7 +307,7 @@ function InventoryOverview({ analytics, suppliers }: {
                   <p className="text-sm text-gray-600">{supplier.totalOrders} commandes</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-gray-900">{supplier.overallScore.toFixed(1)}/5</p>
+                  <p className="font-semibold text-gray-900">{supplier.qualityScore.toFixed(1)}/5</p>
                   <p className="text-sm text-gray-600">{supplier.onTimeDeliveryRate.toFixed(0)}% à l'heure</p>
                 </div>
               </div>

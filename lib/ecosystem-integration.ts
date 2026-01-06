@@ -6,6 +6,8 @@
 
 import { localizationService } from './localization-service';
 import { RTLSupport } from './rtl-support';
+
+const rtlSupport = RTLSupport.getInstance();
 import { localeConfiguration } from './locale-config';
 
 // Configuration d'intégration par application
@@ -169,6 +171,16 @@ export class EcosystemIntegration {
     // Initialiser le service de localisation
     this.initializeLocalizationService(finalConfig);
 
+    // Apply localization config using public API
+    localizationService.configure({
+      currentLanguage: finalConfig.defaultLanguage,
+      currentMarket: finalConfig.defaultMarket,
+      fallbackLanguage: 'fr',
+      enableGeoDetection: finalConfig.features.geoDetection,
+      cacheTranslations: true,
+      enableRTL: finalConfig.features.rtlSupport
+    });
+
     // Configurer les fonctionnalités spécifiques
     this.configureFeatures(finalConfig);
 
@@ -187,14 +199,14 @@ export class EcosystemIntegration {
    */
   private initializeLocalizationService(config: AppIntegrationConfig): void {
     // Configuration du service selon l'application
-    localizationService.config = {
+    localizationService.configure({
       currentLanguage: config.defaultLanguage,
       currentMarket: config.defaultMarket,
       fallbackLanguage: 'fr',
       enableGeoDetection: config.features.geoDetection,
       cacheTranslations: true,
       enableRTL: config.features.rtlSupport
-    };
+    });
 
     // Charger les traductions de base
     this.loadBaseTranslations(config);
@@ -290,7 +302,7 @@ export class EcosystemIntegration {
     };
 
     // Configuration du cache
-    localizationService.config.cacheTranslations = true;
+    localizationService.configure({ cacheTranslations: true });
 
     console.log(`📱 Mode hors ligne configuré pour ${config.appName}`);
   }
@@ -333,7 +345,8 @@ export class EcosystemIntegration {
     };
 
     // Configuration RTL pour l'UI
-    if (config.features.rtlSupport && localizationService.isRTLLanguage(localizationService.getCurrentLanguage())) {
+    const currentLangInfo = localizationService.getCurrentLanguageInfo();
+    if (config.features.rtlSupport && currentLangInfo?.direction === 'rtl') {
       document.body.classList.add('rtl-layout');
       document.body.classList.remove('ltr-layout');
     } else {
@@ -344,7 +357,7 @@ export class EcosystemIntegration {
     // Classes d'application
     document.body.classList.add(`app-${config.appType}`);
     document.body.classList.add(`layout-${config.uiConfig.layout}`);
-    document.body.class.add(`theme-${config.uiConfig.theme}`);
+    document.body.classList.add(`theme-${config.uiConfig.theme}`);
 
     console.log(`🎨 Interface configurée pour ${config.appName}:`, config.uiConfig);
   }

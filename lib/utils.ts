@@ -13,19 +13,28 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/**
- * Formate un nombre en devise
- */
-export function formatCurrency(
-  amount: number, 
-  currency: string = 'EUR',
-  locale: string = 'fr-FR'
-): string {
-  return new Intl.NumberFormat(locale, {
+// lib/formatters.ts
+
+export type CurrencyCode = 'MAD' | 'EUR' | 'USD';
+
+export const formatCurrency = (amount: number, currency: CurrencyCode = 'MAD'): string => {
+  // Configuration spécifique pour le Maroc (Agadir)
+  if (currency === 'MAD') {
+    return new Intl.NumberFormat('fr-MA', {
+      style: 'currency',
+      currency: 'MAD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
+  }
+
+  // Autres devises
+  return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
-    currency
+    currency: currency,
+    minimumFractionDigits: 2
   }).format(amount);
-}
+};
 
 /**
  * Formate un nombre avec séparateurs de milliers

@@ -54,9 +54,10 @@ import {
   useEntries, 
   useChartOfAccounts, 
   useVATReports, 
-  useFinancialAlerts 
+  useFinancialAlerts, 
+  useTrialBalance 
 } from '@/hooks/use-accounting';
-import {
+import type {
   AccountingEntry,
   JournalEntryLine,
   FinancialKPI,
@@ -68,21 +69,21 @@ import {
 } from '@/types/accounting';
 
 // Icônes (à remplacer par des vraies icônes)
-const Icon = {
-  TrendingUp: () => <span>📈</span>,
-  TrendingDown: () => <span>📉</span>,
-  DollarSign: () => <span>💰</span>,
-  AlertTriangle: () => <span>⚠️</span>,
-  CheckCircle: () => <span>✅</span>,
-  XCircle: () => <span>❌</span>,
-  FileText: () => <span>📄</span>,
-  Calculator: () => <span>🧮</span>,
-  BarChart3: () => <span>📊</span>,
-  PieChart: () => <span>🥧</span>,
-  Download: () => <span>⬇️</span>,
-  Plus: () => <span>➕</span>,
-  Filter: () => <span>🔍</span>,
-  RefreshCw: () => <span>🔄</span>
+const Icon: Record<string, (props?: any) => JSX.Element> = {
+  TrendingUp: (props?: any) => <span {...props}>📈</span>,
+  TrendingDown: (props?: any) => <span {...props}>📉</span>,
+  DollarSign: (props?: any) => <span {...props}>💰</span>,
+  AlertTriangle: (props?: any) => <span {...props}>⚠️</span>,
+  CheckCircle: (props?: any) => <span {...props}>✅</span>,
+  XCircle: (props?: any) => <span {...props}>❌</span>,
+  FileText: (props?: any) => <span {...props}>📄</span>,
+  Calculator: (props?: any) => <span {...props}>🧮</span>,
+  BarChart3: (props?: any) => <span {...props}>📊</span>,
+  PieChart: (props?: any) => <span {...props}>🥧</span>,
+  Download: (props?: any) => <span {...props}>⬇️</span>,
+  Plus: (props?: any) => <span {...props}>➕</span>,
+  Filter: (props?: any) => <span {...props}>🔍</span>,
+  RefreshCw: (props?: any) => <span {...props}>🔄</span>
 };
 
 /**
@@ -160,7 +161,7 @@ export function FinancialDashboard({ storeId, className }: FinancialDashboardPro
       {/* KPIs */}
       {dashboard?.kpis && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {dashboard.kpis.map((kpi) => (
+          {dashboard.kpis.map((kpi: FinancialKPI) => (
             <FinancialKPICard key={kpi.id} kpi={kpi} />
           ))}
         </div>
@@ -170,7 +171,7 @@ export function FinancialDashboard({ storeId, className }: FinancialDashboardPro
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {dashboard?.charts && dashboard.charts.length > 0 && (
           <div className="space-y-6">
-            {dashboard.charts.slice(0, 2).map((chart) => (
+            {dashboard.charts.slice(0, 2).map((chart: any) => (
               <FinancialChart key={chart.id} chart={chart} />
             ))}
           </div>
@@ -480,6 +481,9 @@ export function CreateEntryDialog({
     { accountId: '', accountCode: '', accountName: '', debit: 0, credit: 0, description: '' }
   ]);
 
+  // Hook pour créer des écritures via le service de comptabilité
+  const { createEntry, addLines } = useEntries({ storeId });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -503,15 +507,22 @@ export function CreateEntryDialog({
         return;
       }
 
-      // Créer l'écriture
-      const entry = await createEntry({
+      // Créer l'écriture (les lignes seront ajoutées séparément)
+      const createdEntry = await createEntry({
+        storeId,
+        entryNumber: '',
         ...formData,
         amount: Math.max(totalDebit, totalCredit),
         createdBy: 'current_user', // À remplacer
         isPosted: false,
         isReversed: false,
-        lines
+        lines: []
       });
+
+      // Ajouter les lignes après création (addLines accepte les lignes sans id/date/storeId)
+      if (createdEntry && createdEntry.id && lines.length > 0) {
+        await addLines(createdEntry.id, lines);
+      }
 
       if (onSuccess) onSuccess();
       

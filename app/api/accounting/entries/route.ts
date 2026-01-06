@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase';
 import accountingService from '@/lib/accounting-service';
 
 /**
@@ -143,10 +144,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Générer un numéro d'écriture automatique
+    const entryNumber = `JE-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+    
     // Créer l'écriture
     const entry = await accountingService.createEntry({
       date,
       journal,
+      entryNumber,
       description,
       reference,
       amount: Math.max(totalDebit, totalCredit),

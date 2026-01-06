@@ -163,39 +163,39 @@ class OptimizationConfigManager {
     // Override avec les variables d'environnement si elles existent
     const envConfig = this.getEnvOverrides();
     
-    return {
+    return ({
       ...ENVIRONMENTS[env as keyof typeof ENVIRONMENTS] || DEFAULT_CONFIG,
       ...envConfig
-    };
+    } as OptimizationConfig);
   }
   
   private getEnvOverrides(): Partial<OptimizationConfig> {
     const overrides: Partial<OptimizationConfig> = {};
     
     if (process.env.OPTIMIZATION_ENABLED !== undefined) {
-      overrides.monitoring = {
-        ...overrides.monitoring,
+      (overrides as any).monitoring = {
+        ...(overrides.monitoring as Partial<OptimizationConfig['monitoring']>),
         enabled: process.env.OPTIMIZATION_ENABLED === 'true'
       };
     }
     
     if (process.env.CACHE_TTL !== undefined) {
-      overrides.cache = {
-        ...overrides.cache,
+      (overrides as any).cache = {
+        ...(overrides.cache as Partial<OptimizationConfig['cache']>),
         defaultTTL: parseInt(process.env.CACHE_TTL, 10)
       };
     }
     
     if (process.env.SECURITY_MFA_REQUIRED !== undefined) {
-      overrides.security = {
-        ...overrides.security,
+      (overrides as any).security = {
+        ...(overrides.security as Partial<OptimizationConfig['security']>),
         mfaRequired: process.env.SECURITY_MFA_REQUIRED === 'true'
       };
     }
     
     if (process.env.TESTING_AUTO_RUN !== undefined) {
-      overrides.testing = {
-        ...overrides.testing,
+      (overrides as any).testing = {
+        ...(overrides.testing as Partial<OptimizationConfig['testing']>),
         autoRun: process.env.TESTING_AUTO_RUN === 'true'
       };
     }

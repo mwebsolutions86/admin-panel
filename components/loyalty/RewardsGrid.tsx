@@ -26,6 +26,18 @@ interface Reward {
   image?: string;
 }
 
+// Couleurs par type de récompense (module scope so other components can use it)
+function getRewardTypeColor(type: string): string {
+  const colors: Record<string, string> = {
+    discount: 'bg-red-50 border-red-200 text-red-800',
+    free_item: 'bg-green-50 border-green-200 text-green-800',
+    free_delivery: 'bg-blue-50 border-blue-200 text-blue-800',
+    vip_experience: 'bg-purple-50 border-purple-200 text-purple-800',
+    charity: 'bg-pink-50 border-pink-200 text-pink-800'
+  };
+  return colors[type] || 'bg-gray-50 border-gray-200 text-gray-800';
+}
+
 interface RewardsGridProps {
   rewards: Reward[];
   availablePoints: number;
@@ -94,16 +106,7 @@ export function RewardsGrid({
   }
 
   // Obtenir la couleur du type de récompense
-  function getRewardTypeColor(type: string): string {
-    const colors: Record<string, string> = {
-      discount: 'bg-red-50 border-red-200 text-red-800',
-      free_item: 'bg-green-50 border-green-200 text-green-800',
-      free_delivery: 'bg-blue-50 border-blue-200 text-blue-800',
-      vip_experience: 'bg-purple-50 border-purple-200 text-purple-800',
-      charity: 'bg-pink-50 border-pink-200 text-pink-800'
-    };
-    return colors[type] || 'bg-gray-50 border-gray-200 text-gray-800';
-  }
+  // (moved to module scope)
 
   // Gérer le rachat d'une récompense
   const handleRedeem = async (rewardId: string) => {

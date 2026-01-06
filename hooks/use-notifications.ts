@@ -232,7 +232,7 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
           const convertedKey = urlBase64ToUint8Array(vapidPublicKey);
           subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: convertedKey
+            applicationServerKey: convertedKey as any
           });
           
           deviceToken = subscription.endpoint;
@@ -633,6 +633,7 @@ export function useNotificationAnalytics(userId?: string) {
   const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d'>('24h');
 
   const getDetailedAnalytics = useCallback(() => {
+    if (!userId) return null;
     const userAnalytics = analytics.getUserAnalytics(userId);
     if (!userAnalytics) return null;
 

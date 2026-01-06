@@ -11,6 +11,41 @@
 
 import React, { useState, useEffect } from 'react';
 
+// Helper: obtenir la couleur et style selon la rareté
+const getRarityConfig = (rarity: string) => {
+  const configs = {
+    common: {
+      color: 'text-gray-600',
+      bg: 'bg-gray-50',
+      border: 'border-gray-200',
+      glow: 'shadow-gray-200',
+      badge: 'bg-gray-100 text-gray-800'
+    },
+    rare: {
+      color: 'text-blue-600',
+      bg: 'bg-blue-50',
+      border: 'border-blue-200',
+      glow: 'shadow-blue-200',
+      badge: 'bg-blue-100 text-blue-800'
+    },
+    epic: {
+      color: 'text-purple-600',
+      bg: 'bg-purple-50',
+      border: 'border-purple-200',
+      glow: 'shadow-purple-200',
+      badge: 'bg-purple-100 text-purple-800'
+    },
+    legendary: {
+      color: 'text-yellow-600',
+      bg: 'bg-yellow-50',
+      border: 'border-yellow-200',
+      glow: 'shadow-yellow-200',
+      badge: 'bg-yellow-100 text-yellow-800'
+    }
+  };
+  return configs[rarity as keyof typeof configs] || configs.common;
+};
+
 interface Achievement {
   id: string;
   name: string;
@@ -62,39 +97,7 @@ export function AchievementsShowcase({
   };
 
   // Obtenir la couleur et style selon la rareté
-  const getRarityConfig = (rarity: string) => {
-    const configs = {
-      common: {
-        color: 'text-gray-600',
-        bg: 'bg-gray-50',
-        border: 'border-gray-200',
-        glow: 'shadow-gray-200',
-        badge: 'bg-gray-100 text-gray-800'
-      },
-      rare: {
-        color: 'text-blue-600',
-        bg: 'bg-blue-50',
-        border: 'border-blue-200',
-        glow: 'shadow-blue-200',
-        badge: 'bg-blue-100 text-blue-800'
-      },
-      epic: {
-        color: 'text-purple-600',
-        bg: 'bg-purple-50',
-        border: 'border-purple-200',
-        glow: 'shadow-purple-200',
-        badge: 'bg-purple-100 text-purple-800'
-      },
-      legendary: {
-        color: 'text-yellow-600',
-        bg: 'bg-yellow-50',
-        border: 'border-yellow-200',
-        glow: 'shadow-yellow-200',
-        badge: 'bg-yellow-100 text-yellow-800'
-      }
-    };
-    return configs[rarity as keyof typeof configs] || configs.common;
-  };
+  
 
   // Filtrer les achievements
   const filteredAchievements = achievements.filter(achievement => {
@@ -330,7 +333,7 @@ function AchievementCard({
   compact = false 
 }: AchievementCardProps) {
   const rarityConfig = getRarityConfig(achievement.rarity);
-  const progressPercentage = achievement.unlockedAt ? 100 : getProgressPercentage(achievement);
+  const progressPercentage = achievement.unlockedAt ? 100 : Math.min((achievement.progress / achievement.maxProgress) * 100, 100);
   const isUnlocked = !!achievement.unlockedAt;
 
   const formatUnlockDate = (dateString?: string) => {
@@ -342,9 +345,7 @@ function AchievementCard({
     });
   };
 
-  const getProgressPercentage = (achievement: Achievement) => {
-    return Math.min((achievement.progress / achievement.maxProgress) * 100, 100);
-  };
+  
 
   if (compact) {
     return (

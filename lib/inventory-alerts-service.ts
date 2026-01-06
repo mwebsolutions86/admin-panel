@@ -602,7 +602,7 @@ export class InventoryAlertsService {
       }
       return true;
     } catch (error) {
-      performanceMonitor.error('Erreur évaluation condition', { condition, error });
+      performanceMonitor.error('Erreur évaluation condition', { conditions, error });
       return false;
     }
   }
@@ -612,7 +612,7 @@ export class InventoryAlertsService {
     switch (condition.type) {
       case 'threshold':
         // Récupérer la métrique depuis l'inventaire
-        return this.compareValues(100, condition.operator, condition.value);
+        return this.compareValues(100, condition.operator, Number(condition.value));
       case 'schedule':
         return this.isWithinSchedule({ enabled: true, timeWindows: [], cooldown: 0 });
       default:
@@ -706,7 +706,10 @@ export class InventoryAlertsService {
       try {
         switch (action.type) {
           case 'notification':
-            await this.sendNotification(alert, action.config.channels || [], action.config.template);
+            {
+              const tmpl = typeof action.config.template === 'string' ? this.alertTemplates.get(action.config.template) : action.config.template;
+              await this.sendNotification(alert, action.config.channels || [], tmpl);
+            }
             break;
           case 'webhook':
             await this.sendWebhookNotification(alert, { type: 'webhook', config: action.config });
@@ -761,7 +764,8 @@ export class InventoryAlertsService {
 
       // Exécuter les actions d'escalade
       for (const action of escalation.actions) {
-        await this.sendNotification(alert, action.config.channels || [], 'escalation');
+        const tmpl = this.alertTemplates.get('escalation');
+        await this.sendNotification(alert, action.config.channels || [], tmpl);
       }
 
       escalation.performedAt = new Date().toISOString();
@@ -797,7 +801,7 @@ export class InventoryAlertsService {
   private async sendPushNotification(alert: any, channel: NotificationChannel): Promise<void> {
     // Utiliser le service de notifications push existant
     if (notificationsService) {
-      await notificationsService.sendNotification({
+      await notificationsService.sendRawNotification({
         title: alert.title,
         body: alert.message,
         data: { alertId: alert.id }

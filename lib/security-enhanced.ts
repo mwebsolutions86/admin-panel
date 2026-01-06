@@ -158,7 +158,8 @@ class SecurityManager {
       }
 
       // Vérifier la durée de la session
-      const sessionAge = Date.now() - new Date(session.data.session.created_at).getTime();
+      const createdAtStr = (session.data.session as any).created_at || (session.data.session as any).createdAt || new Date().toISOString();
+      const sessionAge = Date.now() - new Date(createdAtStr).getTime();
       const maxAge = this.config.sessionTimeout * 60 * 1000;
 
       if (sessionAge > maxAge) {

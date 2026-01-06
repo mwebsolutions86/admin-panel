@@ -90,8 +90,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const results = [];
-    const errors = [];
+    const results: Array<{ id: any; status: string }> = [];
+    const errors: Array<{ id: any; error: string }> = [];
 
     // Traiter chaque alerte
     for (const alertId of alertIds) {
@@ -160,8 +160,8 @@ export async function DELETE(request: NextRequest) {
         filteredAlerts = filteredAlerts.filter(alert => alert.severity === severity);
       }
 
-      const results = [];
-      const errors = [];
+      const results: Array<{ id: any; status: string }> = [];
+      const errors: Array<{ id: any; error: string }> = [];
 
       // Résoudre toutes les alertes filtrées
       for (const alert of filteredAlerts) {

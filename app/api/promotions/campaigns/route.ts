@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
       }
     ];
 
-    let campaigns = mockCampaigns;
+    let campaigns: any[] = mockCampaigns;
 
     // Filtrer par statut
     if (status === 'active') {
@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       const campaignsWithPromotions = await Promise.all(
         campaigns.map(async (campaign) => {
           const promotions = await Promise.all(
-            campaign.promotions.map(async (promoId) => {
+            campaign.promotions.map(async (promoId: string) => {
               try {
                 return await promotionsService.getPromotion(promoId);
               } catch {

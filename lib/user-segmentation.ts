@@ -321,15 +321,15 @@ export class UserSegmentationService {
   private loadFromCache() {
     try {
       // Charger les segments
-      const cachedSegments = userCache.get('user_segments');
-      if (cachedSegments) {
+      const cachedSegments = userCache.get<UserSegment[]>('user_segments');
+      if (cachedSegments && Array.isArray(cachedSegments)) {
         cachedSegments.forEach((segment: UserSegment) => {
           this.segments.set(segment.id, segment);
         });
       }
 
       // Charger les assignations
-      const cachedAssignments = userCache.get('user_segment_assignments');
+      const cachedAssignments = userCache.get<Record<string, string[]>>('user_segment_assignments');
       if (cachedAssignments) {
         Object.entries(cachedAssignments).forEach(([userId, segmentIds]) => {
           this.assignments.set(userId, new Set(segmentIds as string[]));
@@ -337,7 +337,7 @@ export class UserSegmentationService {
       }
 
       // Charger les profils utilisateurs
-      const cachedProfiles = userCache.get('user_profiles');
+      const cachedProfiles = userCache.get<Record<string, UserProfile>>('user_profiles');
       if (cachedProfiles) {
         Object.entries(cachedProfiles).forEach(([userId, profile]) => {
           this.userProfiles.set(userId, profile as UserProfile);
@@ -345,8 +345,8 @@ export class UserSegmentationService {
       }
 
       // Charger les règles
-      const cachedRules = userCache.get('segmentation_rules');
-      if (cachedRules) {
+      const cachedRules = userCache.get<SegmentationRule[]>('segmentation_rules');
+      if (cachedRules && Array.isArray(cachedRules)) {
         cachedRules.forEach((rule: SegmentationRule) => {
           this.rules.set(rule.id, rule);
         });

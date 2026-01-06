@@ -21,7 +21,6 @@ import taxService from './tax-service';
 import {
   ExportConfig,
   ExportFormat,
-  ReportType,
   AccountingEntry,
   TrialBalance,
   FinancialStatement,
@@ -33,7 +32,7 @@ import {
 
 export interface ExportJob {
   id: string;
-  type: ReportType;
+  type: string;
   format: ExportFormat;
   storeId: string;
   config: ExportConfig;
@@ -50,7 +49,7 @@ export interface ExportTemplate {
   id: string;
   name: string;
   description: string;
-  type: ReportType;
+  type: string;
   format: ExportFormat;
   config: Record<string, any>;
   isActive: boolean;
@@ -143,7 +142,7 @@ export class ExportService {
    * Lance un export asynchrone
    */
   async createExportJob(
-    type: ReportType,
+    type: string,
     format: ExportFormat,
     storeId: string,
     config: ExportConfig
@@ -278,41 +277,42 @@ export class ExportService {
    */
   private async getExportData(job: ExportJob): Promise<any> {
     const { storeId, type } = job;
+    const cfg: any = job.config || {};
 
     switch (type) {
       case 'trial_balance':
-        if (!job.config.periodId) throw new Error('periodId requis pour balance générale');
-        return await accountingService.getTrialBalance(job.config.periodId, storeId);
+        if (!cfg.periodId) throw new Error('periodId requis pour balance générale');
+        return await accountingService.getTrialBalance(cfg.periodId, storeId);
 
       case 'income_statement':
-        if (!job.config.periodId) throw new Error('periodId requis pour compte de résultat');
-        return await accountingService.generateFinancialStatement('income_statement', job.config.periodId, storeId);
+        if (!cfg.periodId) throw new Error('periodId requis pour compte de résultat');
+        return await accountingService.generateFinancialStatement('income_statement', cfg.periodId, storeId);
 
       case 'balance_sheet':
-        if (!job.config.periodId) throw new Error('periodId requis pour bilan');
-        return await accountingService.generateFinancialStatement('balance_sheet', job.config.periodId, storeId);
+        if (!cfg.periodId) throw new Error('periodId requis pour bilan');
+        return await accountingService.generateFinancialStatement('balance_sheet', cfg.periodId, storeId);
 
       case 'cash_flow':
-        if (!job.config.periodId) throw new Error('periodId requis pour tableau des flux');
-        return await accountingService.generateFinancialStatement('cash_flow', job.config.periodId, storeId);
+        if (!cfg.periodId) throw new Error('periodId requis pour tableau des flux');
+        return await accountingService.generateFinancialStatement('cash_flow', cfg.periodId, storeId);
 
       case 'vat_report':
-        if (!job.config.periodId) throw new Error('periodId requis pour rapport TVA');
-        return await accountingService.calculateVAT(job.config.periodId, storeId);
+        if (!cfg.periodId) throw new Error('periodId requis pour rapport TVA');
+        return await accountingService.calculateVAT(cfg.periodId, storeId);
 
       case 'profitability_analysis':
-        if (!job.config.periodId) throw new Error('periodId requis pour analyse de rentabilité');
-        return await accountingService.analyzeProfitability(job.config.periodId, storeId);
+        if (!cfg.periodId) throw new Error('periodId requis pour analyse de rentabilité');
+        return await accountingService.analyzeProfitability(cfg.periodId, storeId);
 
       case 'journal_entries':
-        return await this.getJournalEntries(storeId, job.config.dateRange);
+        return await this.getJournalEntries(storeId, cfg.dateRange);
 
       case 'financial_statements':
-        if (!job.config.periodId) throw new Error('periodId requis pour états financiers');
+        if (!cfg.periodId) throw new Error('periodId requis pour états financiers');
         const [balanceSheet, incomeStatement, cashFlow] = await Promise.all([
-          accountingService.generateFinancialStatement('balance_sheet', job.config.periodId, storeId),
-          accountingService.generateFinancialStatement('income_statement', job.config.periodId, storeId),
-          accountingService.generateFinancialStatement('cash_flow', job.config.periodId, storeId)
+          accountingService.generateFinancialStatement('balance_sheet', cfg.periodId, storeId),
+          accountingService.generateFinancialStatement('income_statement', cfg.periodId, storeId),
+          accountingService.generateFinancialStatement('cash_flow', cfg.periodId, storeId)
         ]);
         return { balanceSheet, incomeStatement, cashFlow };
 
@@ -389,9 +389,10 @@ export class ExportService {
    * Génère un fichier CSV
    */
   private async generateCSV(job: ExportJob, data: any): Promise<ArrayBuffer> {
-    const delimiter = job.config.delimiter || ';';
-    const encoding = job.config.encoding || 'utf-8';
-    const includeHeaders = job.config.includeHeaders !== false;
+    const cfg: any = job.config || {};
+    const delimiter = cfg.delimiter || ';';
+    const encoding = cfg.encoding || 'utf-8';
+    const includeHeaders = cfg.includeHeaders !== false;
 
     let csvContent = '';
 
@@ -623,7 +624,7 @@ export class ExportService {
         ...template,
         isActive: true,
         createdAt: new Date().toISOString()
-      });
+      } as ExportTemplate);
     });
 
     performanceMonitor.info('Templates d\'export initialisés', { count: this.templates.size });
@@ -634,7 +635,7 @@ export class ExportService {
    */
   async createCustomTemplate(
     name: string,
-    type: ReportType,
+    type: string,
     format: ExportFormat,
     config: Record<string, any>
   ): Promise<string> {
@@ -793,8 +794,8 @@ export class ExportService {
     return html;
   }
 
-  private getReportTitle(type: ReportType): string {
-    const titles: Record<ReportType, string> = {
+  private getReportTitle(type: string): string {
+    const titles: Record<string, string> = {
       daily_sales: 'Rapport Quotidien des Ventes',
       weekly_financial: 'Rapport Financier Hebdomadaire',
       monthly_vat: 'Déclaration TVA Mensuelle',

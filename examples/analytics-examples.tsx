@@ -144,9 +144,9 @@ export function exampleUseAnalyticsHook() {
           <div className="kpi-card">
             <h3>Chiffre d'affaires</h3>
             <p>{businessMetrics?.totalRevenue?.toFixed(2)}€</p>
-            <span className={businessMetrics?.revenueGrowth.trend === 'up' ? 'positive' : 'negative'}>
-              {businessMetrics?.revenueGrowth.percentage > 0 ? '+' : ''}
-              {businessMetrics?.revenueGrowth.percentage.toFixed(1)}%
+            <span className={businessMetrics?.revenueGrowth?.trend === 'up' ? 'positive' : 'negative'}>
+              {(businessMetrics?.revenueGrowth?.percentage ?? 0) > 0 ? '+' : ''}
+              {(businessMetrics?.revenueGrowth?.percentage ?? 0).toFixed(1)}%
             </span>
           </div>
           
@@ -221,22 +221,22 @@ export function exampleUseBusinessMetricsHook() {
         <div className="metrics-grid">
           <div className="metric">
             <label>CA Total</label>
-            <value>{metrics.totalRevenue.toFixed(2)}€</value>
+            <div className="value">{metrics.totalRevenue.toFixed(2)}€</div>
           </div>
           <div className="metric">
             <label>Nombre de commandes</label>
-            <value>{metrics.ordersCount}</value>
+            <div className="value">{metrics.ordersCount}</div>
           </div>
           <div className="metric">
             <label>Panier moyen</label>
-            <value>{metrics.averageOrderValue.toFixed(2)}€</value>
+            <div className="value">{metrics.averageOrderValue.toFixed(2)}€</div>
           </div>
           <div className="metric">
             <label>Croissance CA</label>
-            <value className={metrics.revenueGrowth.trend === 'up' ? 'positive' : 'negative'}>
-              {metrics.revenueGrowth.percentage > 0 ? '+' : ''}
-              {metrics.revenueGrowth.percentage.toFixed(1)}%
-            </value>
+            <div className={metrics?.revenueGrowth?.trend === 'up' ? 'positive' : 'negative'}>
+              {(metrics?.revenueGrowth?.percentage ?? 0) > 0 ? '+' : ''}
+              {(metrics?.revenueGrowth?.percentage ?? 0).toFixed(1)}%
+            </div>
           </div>
         </div>
       )}
@@ -407,7 +407,7 @@ export async function exampleOperationalIssuesDetection() {
   try {
     const operationalMetrics = await analyticsService.getOperationalMetrics();
 
-    const issues = [];
+    const issues: Array<{ type: string; severity: string; message: string; recommendation: string }> = [];
 
     // Vérifier les temps de livraison
     if (operationalMetrics.averageDeliveryTime > 35) {
@@ -477,7 +477,7 @@ export async function exampleCustomerSegmentationAnalysis() {
     console.log(`À risque: ${segments.atRisk} clients (${percentages.atRisk}%)`);
 
     // Recommandations basées sur la segmentation
-    const recommendations = [];
+    const recommendations: string[] = [];
 
     if (segments.atRisk > totalCustomers * 0.15) {
       recommendations.push('Mettre en place une campagne de rétention urgente');

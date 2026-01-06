@@ -11,6 +11,30 @@
 
 import React, { useState } from 'react';
 
+// Helper: obtenir la configuration selon la difficulté
+const getDifficultyConfig = (difficulty: string) => {
+  const configs = {
+    easy: { icon: '🟢', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200' },
+    medium: { icon: '🟡', color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200' },
+    hard: { icon: '🟠', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
+    expert: { icon: '🔴', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' }
+  };
+  return configs[difficulty as keyof typeof configs] || configs.medium;
+};
+
+// Helper: obtenir l'icône selon le type de défi
+const getTypeIcon = (type: string) => {
+  const icons = {
+    spending: '💰',
+    orders: '🛒',
+    streak: '🔥',
+    category: '🏷️',
+    referral: '👥',
+    seasonal: '🎄'
+  };
+  return icons[type as keyof typeof icons] || '🎯';
+};
+
 interface Challenge {
   id: string;
   name: string;
@@ -72,15 +96,7 @@ export function ChallengesList({
   };
 
   // Obtenir l'icône et couleur selon la difficulté
-  const getDifficultyConfig = (difficulty: string) => {
-    const configs = {
-      easy: { icon: '🟢', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200' },
-      medium: { icon: '🟡', color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200' },
-      hard: { icon: '🟠', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' },
-      expert: { icon: '🔴', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' }
-    };
-    return configs[difficulty as keyof typeof configs] || configs.medium;
-  };
+  
 
   // Obtenir l'icône selon le type de défi
   const getTypeIcon = (type: string) => {

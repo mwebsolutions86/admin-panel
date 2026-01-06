@@ -1016,36 +1016,36 @@ export class LoyaltyRewardsManager {
    */
   private loadFromCache(): void {
     try {
-      const cachedRewards = userCache.get('loyalty_rewards');
-      if (cachedRewards) {
+      const cachedRewards = userCache.get<LoyaltyReward[]>('loyalty_rewards');
+      if (cachedRewards && Array.isArray(cachedRewards)) {
         cachedRewards.forEach((reward: LoyaltyReward) => {
           this.rewards.set(reward.id, reward);
         });
       }
 
-      const cachedChallenges = userCache.get('loyalty_challenges');
-      if (cachedChallenges) {
+      const cachedChallenges = userCache.get<LoyaltyChallenge[]>('loyalty_challenges');
+      if (cachedChallenges && Array.isArray(cachedChallenges)) {
         cachedChallenges.forEach((challenge: LoyaltyChallenge) => {
           this.challenges.set(challenge.id, challenge);
         });
       }
 
-      const cachedAchievements = userCache.get('loyalty_achievements');
-      if (cachedAchievements) {
+      const cachedAchievements = userCache.get<LoyaltyAchievement[]>('loyalty_achievements');
+      if (cachedAchievements && Array.isArray(cachedAchievements)) {
         cachedAchievements.forEach((achievement: LoyaltyAchievement) => {
           this.achievements.set(achievement.id, achievement);
         });
       }
 
-      const cachedEvents = userCache.get('loyalty_events');
-      if (cachedEvents) {
+      const cachedEvents = userCache.get<LoyaltyEvent[]>('loyalty_events');
+      if (cachedEvents && Array.isArray(cachedEvents)) {
         cachedEvents.forEach((event: LoyaltyEvent) => {
           this.events.set(event.id, event);
         });
       }
 
-      const cachedCategories = userCache.get('loyalty_categories');
-      if (cachedCategories) {
+      const cachedCategories = userCache.get<RewardCategory[]>('loyalty_categories');
+      if (cachedCategories && Array.isArray(cachedCategories)) {
         cachedCategories.forEach((category: RewardCategory) => {
           this.categories.set(category.id, category);
         });

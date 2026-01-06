@@ -337,7 +337,7 @@ export class PromotionsService {
       }
 
       // Vérifier le cache système
-      const systemCached = userCache.get(`promotion_${promotionId}`);
+      const systemCached = userCache.get<Promotion>(`promotion_${promotionId}`);
       if (systemCached) {
         this.promotionCache.set(promotionId, systemCached);
         return systemCached;
@@ -382,7 +382,7 @@ export class PromotionsService {
       const cacheKey = `active_promotions:${JSON.stringify(filters)}`;
       
       // Vérifier le cache
-      const cached = userCache.get(cacheKey);
+      const cached = userCache.get<Promotion[]>(cacheKey);
       if (cached) {
         return cached;
       }
@@ -467,7 +467,9 @@ export class PromotionsService {
           isValid: false,
           discount: 0,
           finalAmount: orderData.totalAmount,
-          reasons: ['Promotion non trouvée']
+          reasons: ['Promotion non trouvée'],
+          warnings: [],
+          stackingApplied: false
         };
       }
 
@@ -509,7 +511,9 @@ export class PromotionsService {
           isValid: false,
           discount: 0,
           finalAmount: orderData.totalAmount,
-          reasons: ['Code promo invalide ou inactif']
+          reasons: ['Code promo invalide ou inactif'],
+          warnings: [],
+          stackingApplied: false
         };
       }
 
@@ -519,7 +523,9 @@ export class PromotionsService {
           isValid: false,
           discount: 0,
           finalAmount: orderData.totalAmount,
-          reasons: ['Promotion associée au code non trouvée']
+          reasons: ['Promotion associée au code non trouvée'],
+          warnings: [],
+          stackingApplied: false
         };
       }
 
@@ -669,7 +675,7 @@ export class PromotionsService {
     try {
       const cacheKey = `promotion_analytics:${promotionId}:${dateRange?.start.toISOString()}_${dateRange?.end.toISOString()}`;
       
-      const cached = userCache.get(cacheKey);
+      const cached = userCache.get<PromotionAnalytics>(cacheKey);
       if (cached) {
         return cached;
       }
@@ -783,7 +789,7 @@ export class PromotionsService {
       throw new Error('La valeur de réduction doit être positive');
     }
 
-    if (promotion.type === 'percentage' && (promotion.discountValue > 100 || promotion.discountValue < 0)) {
+    if (promotion.discountType === 'percentage' && (promotion.discountValue > 100 || promotion.discountValue < 0)) {
       throw new Error('Le pourcentage de réduction doit être entre 0 et 100');
     }
   }

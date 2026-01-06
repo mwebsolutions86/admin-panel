@@ -104,7 +104,7 @@ export function DeliveryPerformance({
           <p className="text-2xl font-bold text-blue-600">
             {data.deliveryTimeDistribution.under30min}%
           </p>
-          <p className="text-sm text-muted-foreground">Livraisons < 30min</p>
+          <p className="text-sm text-muted-foreground">Livraisons &lt; 30min</p>
         </div>
       </div>
 

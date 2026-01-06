@@ -4,8 +4,8 @@
  * Support RTL, formats locaux, géolocalisation
  */
 
-import { createClient } from './supabase';
-import { CacheService } from './cache-service';
+import { supabase } from './supabase';
+import { UniversalCache } from './cache-service';
 
 // Types pour la localisation
 export interface SupportedLanguage {
@@ -72,6 +72,7 @@ export const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
     nativeName: 'العربية',
     direction: 'rtl',
     flag: '🇲🇦',
+    isDefault: false,
     marketCode: 'MA'
   },
   {
@@ -80,6 +81,7 @@ export const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
     nativeName: 'English',
     direction: 'ltr',
     flag: '🇺🇸',
+    isDefault: false,
     marketCode: 'US'
   },
   {
@@ -88,6 +90,7 @@ export const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
     nativeName: 'Español',
     direction: 'ltr',
     flag: '🇪🇸',
+    isDefault: false,
     marketCode: 'ES'
   }
 ];
@@ -142,8 +145,8 @@ export const SUPPORTED_MARKETS: Market[] = [
 
 export class LocalizationService {
   private static instance: LocalizationService;
-  private supabase = createClient();
-  private cacheService = CacheService.getInstance();
+  private supabase = supabase;
+  private cacheService = new UniversalCache(500, 60 * 60 * 1000); // 1 hour TTL
   private config: LocalizationConfig = {
     currentLanguage: 'fr',
     currentMarket: 'FR',
@@ -754,7 +757,7 @@ export class LocalizationService {
         return key;
       }
 
-      let translation = bundle.translations[key];
+      let translation: TranslationValue | undefined = bundle.translations[key];
       
       // Fallback vers la langue par défaut
       if (!translation && currentLang !== this.config.fallbackLanguage) {
@@ -923,6 +926,16 @@ export class LocalizationService {
   }
 
   /**
+   * Configure ou met à jour la configuration de localisation
+   */
+  public configure(config: Partial<LocalizationConfig>): void {
+    this.config = { ...this.config, ...config };
+    if (this.config.enableRTL) {
+      this.setupRTLSupport();
+    }
+  }
+
+  /**
    * Obtient les informations de la langue actuelle
    */
   public getCurrentLanguageInfo(): SupportedLanguage | undefined {
@@ -973,7 +986,7 @@ export class LocalizationService {
     const cacheKeys = keys.map(key => `translations_${key}_${this.config.currentMarket}`);
     
     for (const cacheKey of cacheKeys) {
-      await this.cacheService.remove(cacheKey);
+      this.cacheService.delete(cacheKey);
     }
     
     this.currentTranslations.clear();

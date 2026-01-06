@@ -31,7 +31,7 @@ export class DatabaseOptimizer {
    */
   async optimizedQuery<T>(
     cacheKey: string,
-    queryFn: () => Promise<{ data: T | null; error: any }>,
+    queryFn: () => Promise<any>,
     ttl: number = 5 * 60 * 1000
   ): Promise<{ data: T | null; fromCache: boolean; error: any }> {
     const timer = performanceMonitor.startTimer('database_query');
@@ -45,18 +45,22 @@ export class DatabaseOptimizer {
       }
 
       // Exécuter la requête avec monitoring
-      const result = await performanceMonitor.measureDatabaseQuery(
+      const raw = await performanceMonitor.measureDatabaseQuery(
         cacheKey,
         queryFn
       );
 
-      if (result.data) {
+      // Normaliser les résultats (support multiple shapes from supabase)
+      const resultData = raw && typeof raw === 'object' && 'data' in raw ? raw.data : raw;
+      const error = raw && typeof raw === 'object' ? raw.error ?? null : null;
+
+      if (resultData) {
         // Mettre en cache les résultats
-        productCache.set(cacheKey, result.data, ttl);
+        productCache.set(cacheKey, resultData as T, ttl);
       }
 
       timer();
-      return { data: result.data, fromCache: false, error: result.error };
+      return { data: resultData as T ?? null, fromCache: false, error };
     } catch (error) {
       timer();
       performanceMonitor.error('Erreur requête optimisée', { cacheKey, error });
@@ -85,14 +89,14 @@ export class DatabaseOptimizer {
       options.select || '*',
       JSON.stringify(options.filter || {}),
       options.orderBy,
-      options.ascending,
+      options.ascending === undefined ? undefined : (options.ascending ? 'asc' : 'desc'),
       options.limit,
       options.offset
     );
 
     const ttl = CacheUtils.calculateOptimalTTL('medium');
 
-    return await this.optimizedQuery(
+    const result = await this.optimizedQuery<{ data: T[] | null; count: number | null }>(
       cacheKey,
       async () => {
         let query = supabase
@@ -108,8 +112,8 @@ export class DatabaseOptimizer {
 
         // Appliquer le tri
         if (options.orderBy) {
-          query = query.order(options.orderBy, { 
-            ascending: options.ascending ?? true 
+          query = query.order(options.orderBy, {
+            ascending: options.ascending ?? true
           });
         }
 
@@ -119,7 +123,7 @@ export class DatabaseOptimizer {
         }
         
         if (options.offset) {
-          query = query.range(options.offset, 
+          query = query.range(options.offset,
             (options.offset + (options.limit || 10)) - 1);
         }
 
@@ -127,6 +131,10 @@ export class DatabaseOptimizer {
       },
       ttl
     );
+
+    const data = result.data?.data || [];
+    const total = result.data?.count || 0;
+    return { data, total, fromCache: result.fromCache };
   }
 
   /**
@@ -172,7 +180,8 @@ export class DatabaseOptimizer {
       ttl
     );
 
-    return { data: result.data as T[] || [], fromCache: result.fromCache };
+    const data = (result.data as T[]) || [];
+    return { data, fromCache: result.fromCache };
   }
 
   /**
@@ -197,7 +206,7 @@ export class DatabaseOptimizer {
 
     const ttl = CacheUtils.calculateOptimalTTL('high');
 
-    return await this.optimizedQuery(
+    const result = await this.optimizedQuery(
       cacheKey,
       async () => {
         // Construire la requête de recherche full-text
@@ -213,6 +222,9 @@ export class DatabaseOptimizer {
       },
       ttl
     );
+    
+    const data = (result.data as T[]) || [];
+    return { data, fromCache: result.fromCache };
   }
 
   /**
@@ -243,7 +255,7 @@ export class DatabaseOptimizer {
 
     const ttl = CacheUtils.calculateOptimalTTL('medium');
 
-    return await this.optimizedQuery(
+    const result = await this.optimizedQuery(
       cacheKey,
       async () => {
         let select = groupBy.join(', ');
@@ -254,10 +266,14 @@ export class DatabaseOptimizer {
           select += `, ${agg.function}(${agg.column}) as ${alias}`;
         });
 
-        let query = supabase
+        let query: any = supabase
           .from(table)
-          .select(select)
-          .group(groupBy.join(', '));
+          .select(select);
+
+        if (groupBy && groupBy.length > 0) {
+          // supabase query builder typings don't always include group(); cast to any
+          query = (query as any).group(groupBy.join(', '));
+        }
 
         // Appliquer les filtres
         if (options.filter) {
@@ -275,6 +291,9 @@ export class DatabaseOptimizer {
       },
       ttl
     );
+    
+    const data = (result.data as T[]) || [];
+    return { data, fromCache: result.fromCache };
   }
 
   /**

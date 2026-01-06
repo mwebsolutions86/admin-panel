@@ -15,13 +15,8 @@ import { supabase } from './supabase';
 import { performanceMonitor } from './performance-monitor';
 import accountingService from './accounting-service';
 import financialManager from './financial-manager';
+import { ReportConfig, ReportData } from '@/types/analytics';
 import {
-  ReportConfig,
-  ReportSchedule,
-  ReportData,
-  ReportType,
-  ReportFormat,
-  ReportFrequency,
   FinancialStatement,
   VATReport,
   ProfitabilityAnalysis,
@@ -33,12 +28,12 @@ import {
 interface ScheduledReport {
   id: string;
   name: string;
-  type: ReportType;
-  frequency: ReportFrequency;
+  type: string;
+  frequency: ReportConfig['frequency'];
   nextRun: string;
   isActive: boolean;
   recipients: string[];
-  format: ReportFormat;
+  format: ReportConfig['format'];
   storeId: string;
   periodId?: string;
   config: Record<string, any>;
@@ -57,7 +52,7 @@ interface ReportExecution {
   output?: {
     filePath: string;
     fileSize: number;
-    format: ReportFormat;
+    format: ReportConfig['format'];
   };
   error?: string;
   recordsProcessed: number;
@@ -76,40 +71,40 @@ export class ReportingService {
       name: 'Rapport Quotidien des Ventes',
       type: 'daily_sales',
       description: 'Synthèse quotidienne des ventes et indicateurs clés',
-      frequency: 'daily' as ReportFrequency,
-      format: 'pdf' as ReportFormat,
+      frequency: 'daily' as ReportConfig['frequency'],
+      format: 'pdf' as ReportConfig['format'],
       schedule: '09:00'
     },
     WEEKLY_FINANCIAL: {
       name: 'Rapport Financier Hebdomadaire',
       type: 'weekly_financial',
       description: 'Analyse financière hebdomadaire avec KPIs',
-      frequency: 'weekly' as ReportFrequency,
-      format: 'excel' as ReportFormat,
+      frequency: 'weekly' as ReportConfig['frequency'],
+      format: 'excel' as ReportConfig['format'],
       schedule: 'monday_09:00'
     },
     MONTHLY_VAT: {
       name: 'Déclaration TVA Mensuelle',
       type: 'monthly_vat',
       description: 'Rapport TVA pour déclaration mensuelle',
-      frequency: 'monthly' as ReportFrequency,
-      format: 'pdf' as ReportFormat,
+      frequency: 'monthly' as ReportConfig['frequency'],
+      format: 'pdf' as ReportConfig['format'],
       schedule: '20th_10:00'
     },
     QUARTERLY_STATEMENTS: {
       name: 'États Financiers Trimestriels',
       type: 'quarterly_statements',
       description: 'Bilan, compte de résultat et annexes',
-      frequency: 'quarterly' as ReportFrequency,
-      format: 'pdf' as ReportFormat,
+      frequency: 'quarterly' as ReportConfig['frequency'],
+      format: 'pdf' as ReportConfig['format'],
       schedule: 'quarter_end_15:00'
     },
     ANNUAL_COMPLIANCE: {
       name: 'Rapport de Conformité Annuel',
       type: 'annual_compliance',
       description: 'Rapport de conformité aux normes comptables marocaines',
-      frequency: 'yearly' as ReportFrequency,
-      format: 'pdf' as ReportFormat,
+      frequency: 'yearly' as ReportConfig['frequency'],
+      format: 'pdf' as ReportConfig['format'],
       schedule: 'year_end_30d'
     }
   };
@@ -250,16 +245,15 @@ export class ReportingService {
    */
   async generateReport(
     storeId: string,
-    reportType: ReportType,
+    reportType: string,
     periodId?: string,
-    format: ReportFormat = 'pdf',
+    format: ReportConfig['format'] = 'pdf',
     config: Record<string, any> = {}
   ): Promise<ReportData> {
     try {
       performanceMonitor.startTimer('report_generate');
 
-      const reportData: ReportData = {
-        id: this.generateId(),
+      const reportData: any = {
         reportId: this.generateId(),
         type: reportType,
         title: this.getReportTitle(reportType),
@@ -445,7 +439,7 @@ export class ReportingService {
         .update({
           completed_at: new Date().toISOString(),
           status: 'success',
-          records_processed: reportData.metadata?.recordsProcessed || 0
+          records_processed: (reportData as any).metadata?.recordsProcessed || 0
         })
         .eq('id', executionId);
 
@@ -651,7 +645,7 @@ export class ReportingService {
   /**
    * Calcule la prochaine date d'exécution
    */
-  private calculateNextExecution(frequency: ReportFrequency): Date {
+  private calculateNextExecution(frequency: string): Date {  
     const now = new Date();
     
     switch (frequency) {
@@ -697,18 +691,18 @@ export class ReportingService {
   /**
    * Sauvegarde les données du rapport
    */
-  private async saveReportData(reportData: ReportData): Promise<void> {
+  private async saveReportData(reportData: any): Promise<void> {
     const { error } = await supabase
       .from('generated_reports')
       .insert({
-        report_id: reportData.reportId,
-        type: reportData.type,
-        title: reportData.title,
-        generated_at: reportData.generatedAt,
-        store_id: reportData.storeId,
-        format: reportData.format,
-        data_json: JSON.stringify(reportData.data),
-        metadata_json: JSON.stringify(reportData.metadata)
+        report_id: (reportData as any).reportId,
+        type: (reportData as any).type,
+        title: (reportData as any).title,
+        generated_at: (reportData as any).generatedAt,
+        store_id: (reportData as any).storeId,
+        format: (reportData as any).format,
+        data_json: JSON.stringify((reportData as any).data),
+        metadata_json: JSON.stringify((reportData as any).metadata)
       });
 
     if (error) throw error;
@@ -717,8 +711,8 @@ export class ReportingService {
   /**
    * Obtient le titre du rapport
    */
-  private getReportTitle(reportType: ReportType): string {
-    const titles: Record<ReportType, string> = {
+  private getReportTitle(reportType: string): string {
+    const titles: Record<string, string> = {
       daily_sales: 'Rapport Quotidien des Ventes',
       weekly_financial: 'Rapport Financier Hebdomadaire',
       monthly_vat: 'Déclaration TVA Mensuelle',

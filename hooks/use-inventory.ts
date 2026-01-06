@@ -29,7 +29,7 @@ import {
 } from '../lib/suppliers-manager';
 
 import { useNotifications } from './use-notifications';
-import { useAnalytics } from './use-analytics';
+import { analyticsService } from '@/lib/analytics-service';
 
 // Types pour les hooks
 export interface UseInventoryOptions {
@@ -162,8 +162,7 @@ export function useInventory(options: UseInventoryOptions): UseInventoryReturn {
   const [alerts, setAlerts] = useState<InventoryAlert[]>([]);
   const [analytics, setAnalytics] = useState<InventoryAnalytics | null>(null);
 
-  const { sendNotification } = useNotifications();
-  const { trackEvent } = useAnalytics();
+  const { sendCustom } = useNotifications();
 
   // Récupération de l'inventaire
   const refreshInventory = useCallback(async () => {
@@ -178,23 +177,31 @@ export function useInventory(options: UseInventoryOptions): UseInventoryReturn {
       const alertData = await inventoryService.getActiveAlerts(storeId);
       setAlerts(alertData);
 
-      trackEvent('inventory_refreshed', {
-        storeId,
-        itemsCount: data.length,
-        alertsCount: alertData.length
-      });
+      analyticsService.trackEvent({
+        type: 'inventory_refreshed',
+        category: 'inventory',
+        metadata: {
+          storeId,
+          itemsCount: data.length,
+          alertsCount: alertData.length
+        }
+      } as any);
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue';
       setError(errorMessage);
-      trackEvent('inventory_error', {
-        storeId,
-        error: errorMessage
-      });
+      analyticsService.trackEvent({
+        type: 'inventory_error',
+        category: 'inventory',
+        metadata: {
+          storeId,
+          error: errorMessage
+        }
+      } as any);
     } finally {
       setLoading(false);
     }
-  }, [storeId, filters, trackEvent]);
+  }, [storeId, filters]);
 
   // Initialisation et auto-refresh
   useEffect(() => {
@@ -209,11 +216,15 @@ export function useInventory(options: UseInventoryOptions): UseInventoryReturn {
   // Mise à jour des filtres
   const updateFilters = useCallback((newFilters: Partial<InventoryFilters>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
-    trackEvent('inventory_filters_updated', {
-      storeId,
-      newFilters
-    });
-  }, [storeId, trackEvent]);
+    analyticsService.trackEvent({
+      type: 'inventory_filters_updated',
+      category: 'inventory',
+      metadata: {
+        storeId,
+        newFilters
+      }
+    } as any);
+  }, [storeId]);
 
   // Récupération d'un article spécifique
   const getInventoryItem = useCallback((id: string) => {
@@ -233,33 +244,38 @@ export function useInventory(options: UseInventoryOptions): UseInventoryReturn {
         throw new Error('Article d\'inventaire non trouvé');
       }
 
-      await inventoryService.updateStock(
+        await inventoryService.updateStock(
         itemId, 
         newStock, 
         type, 
         reason, 
         'current_user', // TODO: Récupérer l'utilisateur actuel
-        {
+        ({
           storeId,
           currentStock: item.currentStock
-        }
+        } as any)
       );
 
       // Envoyer une notification si nécessaire
       if (type === 'out' && newStock <= item.minThreshold) {
-        await sendNotification({
+        await sendCustom({
           title: 'Stock faible',
           body: `${item.productId} est en dessous du seuil minimum`,
-          type: 'warning'
+          tag: 'stock-low',
+          data: { type: 'stock_alert', itemId }
         });
       }
 
-      trackEvent('stock_updated', {
-        itemId,
-        newStock,
-        type,
-        reason
-      });
+      analyticsService.trackEvent({
+        type: 'stock_updated',
+        category: 'inventory',
+        metadata: {
+          itemId,
+          newStock,
+          type,
+          reason
+        }
+      } as any);
 
       // Rafraîchir les données
       await refreshInventory();
@@ -269,7 +285,7 @@ export function useInventory(options: UseInventoryOptions): UseInventoryReturn {
       setError(errorMessage);
       throw err;
     }
-  }, [storeId, getInventoryItem, sendNotification, trackEvent, refreshInventory]);
+  }, [storeId, getInventoryItem, sendCustom, refreshInventory]);
 
   // Réservation de stock
   const reserveStock = useCallback(async (
@@ -280,11 +296,15 @@ export function useInventory(options: UseInventoryOptions): UseInventoryReturn {
     try {
       await inventoryService.reserveStock(itemId, quantity, orderId, storeId);
       
-      trackEvent('stock_reserved', {
-        itemId,
-        quantity,
-        orderId
-      });
+      analyticsService.trackEvent({
+        type: 'stock_reserved',
+        category: 'inventory',
+        metadata: {
+          itemId,
+          quantity,
+          orderId
+        }
+      } as any);
 
       await refreshInventory();
 
@@ -293,7 +313,7 @@ export function useInventory(options: UseInventoryOptions): UseInventoryReturn {
       setError(errorMessage);
       throw err;
     }
-  }, [storeId, trackEvent, refreshInventory]);
+  }, [storeId, refreshInventory]);
 
   // Libération du stock réservé
   const releaseReservedStock = useCallback(async (
@@ -304,11 +324,15 @@ export function useInventory(options: UseInventoryOptions): UseInventoryReturn {
     try {
       await inventoryService.releaseReservedStock(itemId, quantity, orderId, storeId);
       
-      trackEvent('stock_released', {
-        itemId,
-        quantity,
-        orderId
-      });
+      analyticsService.trackEvent({
+        type: 'stock_released',
+        category: 'inventory',
+        metadata: {
+          itemId,
+          quantity,
+          orderId
+        }
+      } as any);
 
       await refreshInventory();
 
@@ -317,7 +341,7 @@ export function useInventory(options: UseInventoryOptions): UseInventoryReturn {
       setError(errorMessage);
       throw err;
     }
-  }, [storeId, trackEvent, refreshInventory]);
+  }, [storeId, refreshInventory]);
 
   // Consommation FIFO
   const consumeStockFIFO = useCallback(async (
@@ -328,11 +352,15 @@ export function useInventory(options: UseInventoryOptions): UseInventoryReturn {
     try {
       await inventoryService.consumeStockFIFO(itemId, quantity, storeId, orderId);
       
-      trackEvent('stock_consumed_fifo', {
-        itemId,
-        quantity,
-        orderId
-      });
+      analyticsService.trackEvent({
+        type: 'stock_consumed_fifo',
+        category: 'inventory',
+        metadata: {
+          itemId,
+          quantity,
+          orderId
+        }
+      } as any);
 
       await refreshInventory();
 
@@ -341,7 +369,7 @@ export function useInventory(options: UseInventoryOptions): UseInventoryReturn {
       setError(errorMessage);
       throw err;
     }
-  }, [storeId, trackEvent, refreshInventory]);
+  }, [storeId, refreshInventory]);
 
   // Récupération des mouvements de stock
   const getStockMovements = useCallback(async (
@@ -388,17 +416,21 @@ export function useInventory(options: UseInventoryOptions): UseInventoryReturn {
       const analyticsData = await inventoryService.getInventoryAnalytics(storeId);
       setAnalytics(analyticsData);
       
-      trackEvent('inventory_analytics_retrieved', {
-        storeId,
-        totalValue: analyticsData.totalValue,
-        totalItems: analyticsData.totalItems
-      });
+      analyticsService.trackEvent({
+        type: 'inventory_analytics_retrieved',
+        category: 'inventory',
+        metadata: {
+          storeId,
+          totalValue: analyticsData.totalValue,
+          totalItems: analyticsData.totalItems
+        }
+      } as any);
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur récupération analytics';
       setError(errorMessage);
     }
-  }, [storeId, trackEvent]);
+  }, [storeId]);
 
   // Données calculées
   const lowStockItems = useMemo(() => {
@@ -474,7 +506,7 @@ export function useSuppliers(options?: UseSuppliersOptions): UseSuppliersReturn 
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<SupplierFilters>({});
 
-  const { trackEvent } = useAnalytics();
+  
 
   // Récupération des fournisseurs
   const refreshSuppliers = useCallback(async () => {
@@ -485,20 +517,24 @@ export function useSuppliers(options?: UseSuppliersOptions): UseSuppliersReturn 
       const data = await suppliersManager.getSuppliers(filters);
       setSuppliers(data);
 
-      trackEvent('suppliers_refreshed', {
-        suppliersCount: data.length
-      });
+      analyticsService.trackEvent({
+        type: 'suppliers_refreshed',
+        category: 'suppliers',
+        metadata: { suppliersCount: data.length }
+      } as any);
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue';
       setError(errorMessage);
-      trackEvent('suppliers_error', {
-        error: errorMessage
-      });
+      analyticsService.trackEvent({
+        type: 'suppliers_error',
+        category: 'suppliers',
+        metadata: { error: errorMessage }
+      } as any);
     } finally {
       setLoading(false);
     }
-  }, [filters, trackEvent]);
+  }, [filters]);
 
   // Initialisation et auto-refresh
   useEffect(() => {
@@ -513,8 +549,12 @@ export function useSuppliers(options?: UseSuppliersOptions): UseSuppliersReturn 
   // Mise à jour des filtres
   const updateFilters = useCallback((newFilters: Partial<SupplierFilters>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
-    trackEvent('suppliers_filters_updated', { newFilters });
-  }, [trackEvent]);
+    analyticsService.trackEvent({
+      type: 'suppliers_filters_updated',
+      category: 'suppliers',
+      metadata: { newFilters }
+    } as any);
+  }, []);
 
   // Récupération d'un fournisseur
   const getSupplier = useCallback((id: string) => {
@@ -529,10 +569,14 @@ export function useSuppliers(options?: UseSuppliersOptions): UseSuppliersReturn 
       const newSupplier = await suppliersManager.createSupplier(supplierData);
       await refreshSuppliers();
       
-      trackEvent('supplier_created', {
-        supplierId: newSupplier.id,
-        supplierName: newSupplier.name
-      });
+      analyticsService.trackEvent({
+        type: 'supplier_created',
+        category: 'suppliers',
+        metadata: {
+          supplierId: newSupplier.id,
+          supplierName: newSupplier.name
+        }
+      } as any);
 
       return newSupplier;
 
@@ -541,7 +585,7 @@ export function useSuppliers(options?: UseSuppliersOptions): UseSuppliersReturn 
       setError(errorMessage);
       throw err;
     }
-  }, [refreshSuppliers, trackEvent]);
+  }, [refreshSuppliers]);
 
   // Mise à jour d'un fournisseur
   const updateSupplier = useCallback(async (
@@ -552,10 +596,14 @@ export function useSuppliers(options?: UseSuppliersOptions): UseSuppliersReturn 
       const updatedSupplier = await suppliersManager.updateSupplier(id, updates);
       await refreshSuppliers();
       
-      trackEvent('supplier_updated', {
-        supplierId: id,
-        updates: Object.keys(updates)
-      });
+      analyticsService.trackEvent({
+        type: 'supplier_updated',
+        category: 'suppliers',
+        metadata: {
+          supplierId: id,
+          updates: Object.keys(updates)
+        }
+      } as any);
 
       return updatedSupplier;
 
@@ -564,7 +612,7 @@ export function useSuppliers(options?: UseSuppliersOptions): UseSuppliersReturn 
       setError(errorMessage);
       throw err;
     }
-  }, [refreshSuppliers, trackEvent]);
+  }, [refreshSuppliers]);
 
   // Création d'une commande fournisseur
   const createSupplierOrder = useCallback(async (
@@ -573,11 +621,15 @@ export function useSuppliers(options?: UseSuppliersOptions): UseSuppliersReturn 
     try {
       const newOrder = await suppliersManager.createSupplierOrder(orderData);
       
-      trackEvent('supplier_order_created', {
-        orderId: newOrder.id,
-        supplierId: newOrder.supplierId,
-        totalAmount: newOrder.totalAmount
-      });
+      analyticsService.trackEvent({
+        type: 'supplier_order_created',
+        category: 'suppliers',
+        metadata: {
+          orderId: newOrder.id,
+          supplierId: newOrder.supplierId,
+          totalAmount: newOrder.totalAmount
+        }
+      } as any);
 
       return newOrder;
 
@@ -586,7 +638,7 @@ export function useSuppliers(options?: UseSuppliersOptions): UseSuppliersReturn 
       setError(errorMessage);
       throw err;
     }
-  }, [trackEvent]);
+  }, []);
 
   // Récupération des commandes d'un fournisseur
   const getSupplierOrders = useCallback(async (
@@ -612,17 +664,21 @@ export function useSuppliers(options?: UseSuppliersOptions): UseSuppliersReturn 
     try {
       await suppliersManager.updateOrderStatus(orderId, status, notes);
       
-      trackEvent('supplier_order_status_updated', {
-        orderId,
-        status
-      });
+      analyticsService.trackEvent({
+        type: 'supplier_order_status_updated',
+        category: 'suppliers',
+        metadata: {
+          orderId,
+          status
+        }
+      } as any);
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur mise à jour statut';
       setError(errorMessage);
       throw err;
     }
-  }, [trackEvent]);
+  }, []);
 
   // Création d'une règle de réapprovisionnement
   const createReorderRule = useCallback(async (
@@ -631,10 +687,14 @@ export function useSuppliers(options?: UseSuppliersOptions): UseSuppliersReturn 
     try {
       const newRule = await suppliersManager.createAutomaticReorderRule(ruleData);
       
-      trackEvent('reorder_rule_created', {
-        ruleId: newRule.id,
-        triggerType: newRule.trigger.type
-      });
+      analyticsService.trackEvent({
+        type: 'reorder_rule_created',
+        category: 'suppliers',
+        metadata: {
+          ruleId: newRule.id,
+          triggerType: newRule.trigger.type
+        }
+      } as any);
 
       return newRule;
 
@@ -643,23 +703,27 @@ export function useSuppliers(options?: UseSuppliersOptions): UseSuppliersReturn 
       setError(errorMessage);
       throw err;
     }
-  }, [trackEvent]);
+  }, []);
 
   // Traitement des réapprovisionnements automatiques
   const processAutomaticReorders = useCallback(async () => {
     try {
       await suppliersManager.processAutomaticReorders();
       
-      trackEvent('automatic_reorders_processed', {
-        timestamp: new Date().toISOString()
-      });
+      analyticsService.trackEvent({
+        type: 'automatic_reorders_processed',
+        category: 'suppliers',
+        metadata: {
+          timestamp: new Date().toISOString()
+        }
+      } as any);
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur traitement réapprovisionnement';
       setError(errorMessage);
       throw err;
     }
-  }, [trackEvent]);
+  }, []);
 
   // Récupération des évaluations
   const getSupplierEvaluations = useCallback(async (supplierId: string) => {
@@ -678,10 +742,14 @@ export function useSuppliers(options?: UseSuppliersOptions): UseSuppliersReturn 
     try {
       const evaluation = await suppliersManager.createSupplierEvaluation(evaluationData);
       
-      trackEvent('supplier_evaluation_created', {
-        supplierId: evaluation.supplierId,
-        grade: evaluation.grade
-      });
+      analyticsService.trackEvent({
+        type: 'supplier_evaluation_created',
+        category: 'suppliers',
+        metadata: {
+          supplierId: evaluation.supplierId,
+          grade: evaluation.grade
+        }
+      } as any);
 
       return evaluation;
 
@@ -690,7 +758,7 @@ export function useSuppliers(options?: UseSuppliersOptions): UseSuppliersReturn 
       setError(errorMessage);
       throw err;
     }
-  }, [trackEvent]);
+  }, []);
 
   return {
     // État principal
@@ -736,8 +804,7 @@ export function useInventoryAlerts(options: UseInventoryAlertsOptions): UseInven
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { sendNotification } = useNotifications();
-  const { trackEvent } = useAnalytics();
+  const { sendCustom } = useNotifications();
 
   // Récupération des alertes
   const refreshAlerts = useCallback(async () => {
@@ -753,11 +820,10 @@ export function useInventoryAlerts(options: UseInventoryAlertsOptions): UseInven
         );
 
         for (const alert of criticalAlerts) {
-          await sendNotification({
+          await sendCustom({
             title: `🚨 ${alert.title}`,
             body: alert.message,
-            type: 'error',
-            persistent: true
+            data: { severity: 'error', persistent: true }
           });
         }
       }
@@ -768,7 +834,7 @@ export function useInventoryAlerts(options: UseInventoryAlertsOptions): UseInven
     } finally {
       setLoading(false);
     }
-  }, [storeId, enableNotifications, sendNotification]);
+  }, [storeId, enableNotifications]);
 
   // Initialisation et auto-refresh
   useEffect(() => {
@@ -786,26 +852,26 @@ export function useInventoryAlerts(options: UseInventoryAlertsOptions): UseInven
       await inventoryService.markAlertAsRead(alertId);
       await refreshAlerts();
       
-      trackEvent('inventory_alert_marked_read', { alertId });
+      analyticsService.trackEvent({ type: 'inventory_alert_marked_read', category: 'inventory', metadata: { alertId } } as any);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur marquage alerte';
       setError(errorMessage);
       throw err;
     }
-  }, [refreshAlerts, trackEvent]);
+  }, [refreshAlerts]);
 
   const resolve = useCallback(async (alertId: string) => {
     try {
       await inventoryService.resolveAlert(alertId);
       await refreshAlerts();
       
-      trackEvent('inventory_alert_resolved', { alertId });
+      analyticsService.trackEvent({ type: 'inventory_alert_resolved', category: 'inventory', metadata: { alertId } } as any);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur résolution alerte';
       setError(errorMessage);
       throw err;
     }
-  }, [refreshAlerts, trackEvent]);
+  }, [refreshAlerts]);
 
   const markAllAsRead = useCallback(async () => {
     try {
@@ -817,16 +883,14 @@ export function useInventoryAlerts(options: UseInventoryAlertsOptions): UseInven
       
       await refreshAlerts();
       
-      trackEvent('inventory_alerts_all_marked_read', { 
-        count: unreadAlerts.length 
-      });
+      analyticsService.trackEvent({ type: 'inventory_alerts_all_marked_read', category: 'inventory', metadata: { count: unreadAlerts.length } } as any);
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur marquage toutes alertes';
       setError(errorMessage);
       throw err;
     }
-  }, [alerts, refreshAlerts, trackEvent]);
+  }, [alerts, refreshAlerts]);
 
   const dismissAll = useCallback(async () => {
     try {
@@ -838,16 +902,14 @@ export function useInventoryAlerts(options: UseInventoryAlertsOptions): UseInven
       
       await refreshAlerts();
       
-      trackEvent('inventory_alerts_all_dismissed', { 
-        count: activeAlerts.length 
-      });
+      analyticsService.trackEvent({ type: 'inventory_alerts_all_dismissed', category: 'inventory', metadata: { count: activeAlerts.length } } as any);
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur dismissal alertes';
       setError(errorMessage);
       throw err;
     }
-  }, [alerts, refreshAlerts, trackEvent]);
+  }, [alerts, refreshAlerts]);
 
   // Données calculées
   const criticalAlerts = useMemo(() => {

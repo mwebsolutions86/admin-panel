@@ -127,6 +127,7 @@ export interface SupplierPerformance {
 export interface InventoryFilters {
   storeIds?: string[];
   categories?: string[];
+  stockStatus?: string;
   minStock?: number;
   maxStock?: number;
   expiryWarning?: boolean;
@@ -206,7 +207,8 @@ export class InventoryService {
         query = query.lte('current_stock', filters.maxStock);
       }
       if (filters?.lowStock) {
-        query = query.lte('current_stock', supabase.raw('min_threshold'));
+        // Note: comparing column-to-column isn't supported here; use provided minStock if available
+        query = query.lte('current_stock', filters.minStock ?? 0);
       }
 
       const { data, error } = await query.order('last_updated', { ascending: false });
@@ -314,7 +316,7 @@ export class InventoryService {
         inventoryItemId,
         storeId: metadata.storeId || '',
         type,
-        quantity: Math.abs(newStock - (metadata.currentStock || 0)),
+        quantity: Math.abs(newStock - ((metadata as any).currentStock || 0)),
         reason,
         reference: metadata.reference,
         lotNumber: metadata.lotNumber,
@@ -1058,7 +1060,7 @@ export class InventoryService {
   private generateFilterKey(filters?: InventoryFilters): string {
     if (!filters) return 'default';
     
-    const parts = [];
+    const parts: string[] = [];
     if (filters.storeIds) parts.push(`stores:${filters.storeIds.join(',')}`);
     if (filters.categories) parts.push(`categories:${filters.categories.join(',')}`);
     if (filters.minStock !== undefined) parts.push(`min:${filters.minStock}`);

@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import { 
   useLocalization, 
   useSetLanguage, 
+  useSetMarket,
   useLocaleInfo 
 } from '../../hooks/use-localization';
 import { LocalizedText } from './LocalizedText';
@@ -330,7 +331,7 @@ export const MarketSelector: React.FC<MarketSelectorProps> = ({
   disableAnimations = false
 }) => {
   const { supportedMarkets, currentMarket } = useLocalization();
-  const { setMarket } = useLocalization();
+  const { setMarket } = useSetMarket();
   const { getMarketByCode } = useLocaleInfo();
   
   const [isOpen, setIsOpen] = useState(false);

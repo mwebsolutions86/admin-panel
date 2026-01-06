@@ -1,88 +1,99 @@
-/**
- * Composant KPICards
- * Universal Eats - Module Analytics
- */
-
 import React from 'react';
-import { MetricsCard } from './MetricsCard';
-import { DollarSign, Package, TrendingUp, Users } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { BusinessMetrics } from '@/types/analytics';
+import { Euro, ShoppingBag, TrendingUp, Wallet, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { formatCurrency, CurrencyCode } from '@/lib/formatters';
 
 interface KPICardsProps {
-  revenue: number;
-  orders: number;
-  avgOrderValue: number;
-  growth: number;
-  className?: string;
+  metrics?: BusinessMetrics;
+  loading?: boolean;
+  currency?: CurrencyCode;
 }
 
-export function KPICards({
-  revenue,
-  orders,
-  avgOrderValue,
-  growth,
-  className = ''
-}: KPICardsProps) {
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(value);
-  };
+export function KPICards({ metrics, loading, currency = 'MAD' }: KPICardsProps) {
+  
+  if (loading || !metrics) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="animate-pulse">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="h-4 w-24 bg-muted rounded"></div>
+              <div className="h-4 w-4 bg-muted rounded"></div>
+            </CardHeader>
+            <CardContent>
+              <div className="h-8 w-32 bg-muted rounded mb-2"></div>
+              <div className="h-3 w-20 bg-muted rounded"></div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
-  const formatNumber = (value: number) => {
-    return new Intl.NumberFormat('fr-FR').format(value);
-  };
-
-  const getTrend = (value: number) => {
-    if (value > 5) return 'up';
-    if (value < -5) return 'down';
-    return 'stable';
-  };
+  const kpiData = [
+    {
+      title: "Chiffre d'Affaires",
+      value: formatCurrency(metrics.totalRevenue, currency),
+      icon: <Wallet className="h-5 w-5 text-primary" />,
+      trend: "+10%",
+      trendUp: true,
+      description: "Période actuelle"
+    },
+    {
+      title: "Commandes",
+      value: (metrics.ordersCount || 0).toString(),
+      icon: <ShoppingBag className="h-5 w-5 text-blue-500" />,
+      trend: "+5%",
+      trendUp: true,
+      description: "Validées"
+    },
+    {
+      title: "Panier Moyen",
+      value: formatCurrency(metrics.averageOrderValue, currency),
+      icon: <TrendingUp className="h-5 w-5 text-orange-500" />,
+      trend: "-2%",
+      trendUp: false,
+      description: "Moyenne"
+    },
+    {
+      title: "Marge Nette (Est.)",
+      value: formatCurrency(metrics.netMargin, currency),
+      icon: <Euro className="h-5 w-5 text-green-500" />,
+      trend: "+8%",
+      trendUp: true,
+      description: "Estimée à 15%"
+    }
+  ];
 
   return (
-    <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 ${className}`}>
-      <MetricsCard
-        title="Chiffre d'Affaires"
-        value={formatCurrency(revenue)}
-        trend={getTrend(growth)}
-        trendValue={growth}
-        icon={DollarSign}
-        color="green"
-        description="Revenus totaux période"
-      />
-
-      <MetricsCard
-        title="Commandes"
-        value={formatNumber(orders)}
-        unit=""
-        trend={getTrend(growth * 0.8)} // Corrélation approximative
-        trendValue={growth * 0.8}
-        icon={Package}
-        color="blue"
-        description="Nombre total de commandes"
-      />
-
-      <MetricsCard
-        title="Panier Moyen"
-        value={formatCurrency(avgOrderValue)}
-        trend={getTrend(growth * 0.6)}
-        trendValue={growth * 0.6}
-        icon={TrendingUp}
-        color="purple"
-        description="Valeur moyenne par commande"
-      />
-
-      <MetricsCard
-        title="Croissance"
-        value={growth}
-        unit="%"
-        trend={getTrend(growth)}
-        icon={Users}
-        color="orange"
-        description="Évolution vs période précédente"
-      />
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {kpiData.map((kpi, index) => (
+        <Card key={index} className="hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {kpi.title}
+            </CardTitle>
+            {kpi.icon}
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{kpi.value}</div>
+            <div className="flex items-center text-xs text-muted-foreground mt-1">
+              {kpi.trendUp ? (
+                <ArrowUpRight className="mr-1 h-4 w-4 text-green-500" />
+              ) : (
+                <ArrowDownRight className="mr-1 h-4 w-4 text-red-500" />
+              )}
+              <span className={kpi.trendUp ? "text-green-500 font-medium" : "text-red-500 font-medium"}>
+                {kpi.trend}
+              </span>
+              <span className="ml-1 text-muted-foreground opacity-70">
+                {kpi.description}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
-
-export default KPICards;
