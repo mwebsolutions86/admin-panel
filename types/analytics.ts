@@ -2,6 +2,9 @@ export interface AnalyticsFilters {
   dateRange?: DateRange;
   stores?: string[];
   category?: string;
+  // Ajout pour compatibilité avec code existant
+  categories?: string[];
+  orderTypes?: string[];
 }
 
 export interface DateRange {
@@ -90,3 +93,22 @@ export type ReportData = any;
 export type TrendAnalysis = any;
 export type AnalyticsEvent = any;
 export type KPIConfig = any;
+
+export interface PerformanceMetrics {
+  uptime?: number;
+  responseTime?: number;
+  errorRate?: number;
+  cpuUsage?: number;
+}
+
+export interface DashboardConfig {
+  layout?: 'grid' | 'list';
+  refreshInterval?: number;
+  visibleWidgets?: string[];
+  filters?: AnalyticsFilters;
+  notifications?: {
+    enableRealTimeAlerts?: boolean;
+    enableEmailReports?: boolean;
+    enablePushNotifications?: boolean;
+  };
+}

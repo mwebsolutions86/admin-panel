@@ -4,6 +4,8 @@
  * Support RTL, formats locaux, changements dynamiques
  */
 
+"use client";
+
 import { useState, useEffect, useContext, createContext, useCallback } from 'react';
 import { 
   localizationService, 

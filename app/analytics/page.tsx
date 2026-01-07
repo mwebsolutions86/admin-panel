@@ -1,24 +1,18 @@
 /**
  * Page Analytics Dashboard
  * Universal Eats - Module Analytics Phase 2
+ * Hub central de navigation pour les modules avancés
  */
 
 'use client';
 
 import { AnalyticsDashboard } from '@/components/analytics/AnalyticsDashboard';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
-  BarChart3, 
-  TrendingUp, 
-  Users, 
-  Package, 
-  Clock,
-  Target,
-  Bell,
   Download,
-  RefreshCw
+  RefreshCw,
+  Target
 } from 'lucide-react';
 import { useAnalytics } from '@/hooks/use-analytics';
 import Link from 'next/link';
@@ -120,21 +114,23 @@ export default function AnalyticsPage() {
         )}
       </div>
 
-      {/* Footer avec liens utiles */}
+      {/* Footer avec liens utiles - CONNECTÉ AUX NOUVEAUX MODULES */}
       <footer className="bg-white border-t mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
-              <h3 className="font-semibold text-gray-900 mb-4">Analytics</h3>
+              <h3 className="font-semibold text-gray-900 mb-4">Analytics & Finance</h3>
               <ul className="space-y-2 text-sm text-gray-600">
                 <li>
-                  <Link href="/analytics/business" className="hover:text-blue-600">
-                    Métriques Business
+                  {/* LIEN CONNECTÉ -> Module Finance */}
+                  <Link href="/finance" className="hover:text-blue-600">
+                    Métriques Business & Finance
                   </Link>
                 </li>
                 <li>
-                  <Link href="/analytics/customers" className="hover:text-blue-600">
-                    Analytics Client
+                  {/* LIEN CONNECTÉ -> Module Fidélité */}
+                  <Link href="/loyalty" className="hover:text-blue-600">
+                    Analytics Client & Fidélité
                   </Link>
                 </li>
                 <li>
@@ -180,18 +176,21 @@ export default function AnalyticsPage() {
               <h3 className="font-semibold text-gray-900 mb-4">Configuration</h3>
               <ul className="space-y-2 text-sm text-gray-600">
                 <li>
-                  <Link href="/analytics/kpis" className="hover:text-blue-600">
-                    Gestion KPIs
+                  {/* LIEN CONNECTÉ -> Module Promotions */}
+                  <Link href="/promotions" className="hover:text-blue-600">
+                    Gestion des Promotions
                   </Link>
                 </li>
                 <li>
-                  <Link href="/analytics/alerts" className="hover:text-blue-600">
-                    Centre d'Alertes
+                  {/* LIEN CONNECTÉ -> Module Notifications */}
+                  <Link href="/notifications" className="hover:text-blue-600">
+                    Centre d'Alertes & Notifs
                   </Link>
                 </li>
                 <li>
-                  <Link href="/analytics/filters" className="hover:text-blue-600">
-                    Filtres
+                   {/* LIEN CONNECTÉ -> Module PWA */}
+                  <Link href="/mobile-app" className="hover:text-blue-600">
+                    Application Mobile (PWA)
                   </Link>
                 </li>
                 <li>
@@ -206,23 +205,19 @@ export default function AnalyticsPage() {
               <h3 className="font-semibold text-gray-900 mb-4">Ressources</h3>
               <ul className="space-y-2 text-sm text-gray-600">
                 <li>
+                   {/* LIEN CONNECTÉ -> Module Traductions */}
+                  <Link href="/settings/localization" className="hover:text-blue-600">
+                    Traductions & Langues
+                  </Link>
+                </li>
+                <li>
                   <Link href="/docs/analytics" className="hover:text-blue-600">
                     Documentation
                   </Link>
                 </li>
                 <li>
-                  <Link href="/examples/analytics" className="hover:text-blue-600">
-                    Exemples
-                  </Link>
-                </li>
-                <li>
                   <Link href="/support/analytics" className="hover:text-blue-600">
-                    Support
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/api/docs/analytics" className="hover:text-blue-600">
-                    API Documentation
+                    Support Technique
                   </Link>
                 </li>
               </ul>

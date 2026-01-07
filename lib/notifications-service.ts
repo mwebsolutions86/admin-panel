@@ -1,14 +1,12 @@
 /**
  * Service de Notifications Push Multi-Plateformes
  * Universal Eats - Phase 2 Expérience Utilisateur Améliorée
- * 
- * Ce service unifie les notifications push pour web, mobile (iOS/Android) et desktop
+ * * Ce service unifie les notifications push pour web, mobile (iOS/Android) et desktop
  * avec intégration complète du système de cache et monitoring Phase 1.
  */
 
 import { performanceMonitor } from './performance-monitor';
-import { productCache, userCache, CacheUtils } from './cache-service';
-import { configManager, ConfigUtils } from './optimization-config';
+import { userCache } from './cache-service';
 
 // Types pour les notifications
 export interface NotificationPayload {
@@ -534,7 +532,7 @@ export class NotificationsService {
       userCache.set('notification_devices', devices, 30 * 60 * 1000); // 30 minutes
 
       // Sauvegarder la configuration
-      userCache.set('notifications_config', this.config, 60 * 60 * 1000); // 1 heure
+      const cachedConfig = userCache.set('notifications_config', this.config, 60 * 60 * 1000); // 1 heure
 
       // Sauvegarder les analytics
       const analyticsObj = Object.fromEntries(this.analytics);
@@ -547,7 +545,7 @@ export class NotificationsService {
   }
 
   /**
-   * Initialise le service
+   * Initialise le service (SAFE MODE)
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
@@ -555,19 +553,31 @@ export class NotificationsService {
     try {
       performanceMonitor.info('Initialisation du service de notifications');
 
-      // Initialiser Web Push si activé
-      if (this.config.platforms.web.enabled) {
-        await this.initializeWebPush();
+      // Initialiser Web Push si activé (avec gestion d'erreur non bloquante)
+      if (typeof window !== 'undefined' && this.config.platforms.web.enabled) {
+        try {
+          await this.initializeWebPush();
+        } catch (e) {
+          console.warn('[Notifications] WebPush ignoré suite à une erreur (non critique):', e);
+        }
       }
 
       // Initialiser FCM si activé
       if (this.config.platforms.fcm.enabled) {
-        await this.initializeFCM();
+        try {
+          await this.initializeFCM();
+        } catch (e) {
+          console.warn('[Notifications] FCM ignoré (config manquante ou erreur):', e);
+        }
       }
 
       // Initialiser APNS si activé
       if (this.config.platforms.apns.enabled) {
-        await this.initializeAPNS();
+        try {
+          await this.initializeAPNS();
+        } catch (e) {
+          console.warn('[Notifications] APNS ignoré (config manquante ou erreur):', e);
+        }
       }
 
       // Démarrer le traitement de la queue
@@ -580,20 +590,29 @@ export class NotificationsService {
 
     } catch (error) {
       performanceMonitor.error('Erreur initialisation service notifications', { error });
-      throw error;
+      // En mode safe, on ne throw pas pour éviter de casser l'app entière
+      // throw error; 
     }
   }
 
   /**
-   * Initialise Web Push API
+   * Initialise Web Push API (SAFE MODE)
    */
   private async initializeWebPush(): Promise<void> {
-    if (!this.config.platforms.web.vapidPublicKey) {
-      throw new Error('Clé VAPID publique manquante pour Web Push');
+    const publicKey = this.config.platforms.web.vapidPublicKey || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+
+    if (!publicKey) {
+      console.warn('[Notifications] VAPID Public Key manquante. Les notifications Web Push sont désactivées.');
+      return; 
+    }
+
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.warn('[Notifications] Web Push non supporté par ce navigateur.');
+      return;
     }
 
     performanceMonitor.info('Web Push initialisé', {
-      vapidPublicKey: this.config.platforms.web.vapidPublicKey.substring(0, 20) + '...'
+      vapidPublicKey: publicKey.substring(0, 20) + '...'
     });
   }
 
@@ -628,8 +647,8 @@ export class NotificationsService {
    * Demande les permissions pour les notifications
    */
   async requestPermission(): Promise<NotificationPermission> {
-    if (!('Notification' in window)) {
-      throw new Error('Les notifications ne sont pas supportées sur ce navigateur');
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      return 'denied';
     }
 
     if (Notification.permission === 'granted') {
@@ -640,14 +659,19 @@ export class NotificationsService {
       return 'denied';
     }
 
-    const permission = await Notification.requestPermission();
-    
-    performanceMonitor.info('Permission notifications demandée', {
-      permission,
-      userAgent: navigator.userAgent
-    });
+    try {
+      const permission = await Notification.requestPermission();
+      
+      performanceMonitor.info('Permission notifications demandée', {
+        permission,
+        userAgent: navigator.userAgent
+      });
 
-    return permission;
+      return permission;
+    } catch (error) {
+      console.error('Erreur demande permission:', error);
+      return 'denied';
+    }
   }
 
   /**
@@ -1157,7 +1181,7 @@ export class NotificationsService {
    * Envoie une notification desktop native
    */
   private async sendDesktopNotification(device: DeviceRegistration, payload: NotificationPayload): Promise<void> {
-    if (Notification.permission !== 'granted') {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
       throw new Error('Permission notifications non accordée');
     }
 
@@ -1326,6 +1350,9 @@ export const notificationsService = new NotificationsService();
 // Initialisation automatique si côté client
 if (typeof window !== 'undefined') {
   notificationsService.initialize().catch(error => {
-    console.error('Erreur initialisation notifications:', error);
+    // Log silencieux pour ne pas polluer la console en cas d'erreur attendue (ex: pas de clés)
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('Notification service init status:', error.message);
+    }
   });
 }

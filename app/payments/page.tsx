@@ -260,8 +260,7 @@ export default function PaymentsPage() {
                 unit="%"
                 icon={CheckCircle}
                 color="purple"
-                trend={statistics.successRate > 80 ? 'up' : 'down'}
-                trendValue={5.2}
+                trend={{ value: statistics.successRateChange ?? 5.2, isPositive: (statistics.successRate ?? 0) > 80 }}
                 description="Transactions réussies"
               />
               <MetricsCard
@@ -389,10 +388,10 @@ export default function PaymentsPage() {
                 </div>
                 <div>
                   <Label>Période</Label>
-                  <DateRangePicker
-                    value={dateRange}
-                    onChange={setDateRange}
-                  />
+                    <DateRangePicker
+                      dateRange={dateRange}
+                      onChange={setDateRange}
+                    />
                 </div>
               </div>
             </CardContent>

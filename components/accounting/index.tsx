@@ -120,11 +120,12 @@ export function FinancialDashboard({ storeId, className }: FinancialDashboardPro
   }
 
   if (error) {
+    const message = error instanceof Error ? error.message : String(error);
     return (
       <Alert variant="destructive">
         <Icon.AlertTriangle />
         <AlertDescription>
-          Erreur lors du chargement du tableau de bord: {error}
+          Erreur lors du chargement du tableau de bord: {message}
         </AlertDescription>
       </Alert>
     );
@@ -833,11 +834,12 @@ export function VATReports({ storeId, periodId }: VATReportsProps) {
   }
 
   if (error) {
+    const message = error instanceof Error ? error.message : String(error);
     return (
       <Alert variant="destructive">
         <Icon.AlertTriangle />
         <AlertDescription>
-          Erreur lors du chargement du rapport TVA: {error}
+          Erreur lors du chargement du rapport TVA: {message}
         </AlertDescription>
       </Alert>
     );
@@ -1004,11 +1006,12 @@ export function TrialBalance({ storeId, periodId }: TrialBalanceProps) {
   }
 
   if (error) {
+    const message = error instanceof Error ? error.message : String(error);
     return (
       <Alert variant="destructive">
         <Icon.AlertTriangle />
         <AlertDescription>
-          Erreur lors du chargement de la balance: {error}
+          Erreur lors du chargement de la balance: {message}
         </AlertDescription>
       </Alert>
     );

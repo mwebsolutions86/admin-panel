@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import AuthGuard from "@/components/AuthGuard"; // 👇 Import du Gardien
-import LayoutShell from "@/components/LayoutShell"; // 👇 Import de la Coquille
+import AuthGuard from "@/components/AuthGuard";
+import LayoutShell from "@/components/LayoutShell";
+import { LocalizationProvider } from "@/hooks/use-localization";
+// 👇 Import du nouveau QueryProvider
+import QueryProvider from "@/components/QueryProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -29,17 +32,22 @@ export default function RootLayout({
             enableSystem={false}
             disableTransitionOnChange
           >
-            
-            {/* 👇 1. SÉCURITÉ : On enveloppe tout dans le Gardien */}
-            <AuthGuard>
-              
-              {/* 👇 2. STRUCTURE : On utilise notre coquille intelligente */}
-              <LayoutShell>
-                  {children}
-              </LayoutShell>
+            {/* 👇 AJOUT : On enveloppe avec QueryProvider */}
+            <QueryProvider>
+              <LocalizationProvider>
+                
+                {/* 1. SÉCURITÉ : On enveloppe tout dans le Gardien */}
+                <AuthGuard>
+                  
+                  {/* 2. STRUCTURE : On utilise notre coquille intelligente */}
+                  <LayoutShell>
+                      {children}
+                  </LayoutShell>
 
-            </AuthGuard>
+                </AuthGuard>
 
+              </LocalizationProvider>
+            </QueryProvider>
         </ThemeProvider>
       </body>
     </html>
