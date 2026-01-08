@@ -73,33 +73,58 @@ export const TranslationAdmin: React.FC<TranslationAdminProps> = ({ className })
     total: 0,
     pages: 0
   });
-// Remplacer la fonction loadStats par :
-
+// Fonction de chargement des statistiques
   const loadStats = async () => {
     try {
-      const mockStats: any = { // Utilisation de 'any' ou typage partiel pour éviter les conflits stricts pendant le dev
-        totalTranslations: 1250,
-        languagesBreakdown: { fr: 450, en: 400, ar: 400 },
-        marketsBreakdown: { FR: 600, MA: 650 },
-        completionRates: { fr: 100, en: 85, ar: 85 },
-        qualityScores: { fr: 98, en: 95, ar: 92 },
-        recentUpdates: [],
-        
-        // === PROPRIÉTÉ MANQUANTE AJOUTÉE ===
-        missingTranslations: [
-          { key: 'welcome_message', missingIn: [{ language: 'ar', market: 'MA' }] }
-        ],
-        
+      setLoading(true);
+      
+      // On s'assure d'avoir toutes les traductions pour le calcul
+      const allTranslationsResponse = await localizationAPI.getTranslations({ limit: 10000 });
+      // On force le type ici pour que TypeScript soit content
+      const allData = (allTranslationsResponse.data || []) as Translation[];
+
+      const realStats: any = {
+        totalTranslations: allData.length,
+        languagesBreakdown: {},
+        marketsBreakdown: {},
+        completionRates: {},
+        qualityScores: {},
+        missingTranslations: [],
         key: 'global_stats',
         language: 'all',
         market: 'all',
         updatedAt: new Date().toISOString(),
         author: 'system'
       };
+
+      // Remplissage des breakdowns
+      allData.forEach((t: Translation) => {
+        // Utilisation de variables temporaires typées string pour l'indexation
+        const langKey = t.language as string;
+        const marketKey = t.market as string;
+
+        realStats.languagesBreakdown[langKey] = (realStats.languagesBreakdown[langKey] || 0) + 1;
+        realStats.marketsBreakdown[marketKey] = (realStats.marketsBreakdown[marketKey] || 0) + 1;
+      });
+
+      // Calcul simple des taux de complétion
+      const maxKeys = Math.max(...Object.values(realStats.languagesBreakdown as Record<string, number>));
       
-      setStats(mockStats);
+      // Récupération des clés uniques de langue
+      const languages = Object.keys(realStats.languagesBreakdown);
+      
+      languages.forEach((lang: string) => {
+        const count = realStats.languagesBreakdown[lang] || 0;
+        realStats.completionRates[lang] = maxKeys > 0 ? Math.round((count / maxKeys) * 100) : 0;
+      });
+
+      setStats(realStats);
+
     } catch (err) {
-      console.error("Erreur lors du chargement des stats:", err);
+      console.error("Erreur calcul stats:", err);
+      setError("Impossible de calculer les statistiques.");
+    } finally {
+      setLoading(false);
     }
   };
 

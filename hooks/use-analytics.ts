@@ -205,6 +205,7 @@ export function useAnalytics(options: UseAnalyticsOptions = {}) {
     
     // Actions
     refresh,
+    refreshData: refresh, // AJOUT : Alias pour compatibilité
     updateFilters,
     loadMetric,
     
@@ -244,7 +245,8 @@ export function useBusinessMetrics(filters?: AnalyticsFilters, options?: UseAnal
     metrics,
     isLoading,
     error,
-    refresh: () => loadMetrics()
+    refresh: () => loadMetrics(),
+    refreshData: () => loadMetrics() // AJOUT : Alias pour compatibilité
   };
 }
 
@@ -278,7 +280,8 @@ export function useCustomerMetrics(filters?: AnalyticsFilters, options?: UseAnal
     metrics,
     isLoading,
     error,
-    refresh: () => loadMetrics()
+    refresh: () => loadMetrics(),
+    refreshData: () => loadMetrics() // AJOUT : Alias pour compatibilité
   };
 }
 
@@ -312,7 +315,8 @@ export function useOperationalMetrics(filters?: AnalyticsFilters, options?: UseA
     metrics,
     isLoading,
     error,
-    refresh: () => loadMetrics()
+    refresh: () => loadMetrics(),
+    refreshData: () => loadMetrics() // AJOUT : Alias pour compatibilité
   };
 }
 
@@ -374,7 +378,8 @@ export function useKPIs() {
     isLoading,
     updateKPI,
     checkThresholds,
-    refresh: loadKPIs
+    refresh: loadKPIs,
+    refreshData: loadKPIs // AJOUT : Alias pour compatibilité
   };
 }
 
