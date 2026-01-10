@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Calendar, Store, Tag, ShoppingBag, ArrowRight, RotateCcw, Check } from "lucide-react";
+import { X, Calendar, ShoppingBag, RotateCcw, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Card } from "@/components/ui/card";
+import { DateRangePicker } from "./DateRangePicker";
 import { AnalyticsFilters } from "@/types/analytics";
 
 interface AdvancedFiltersProps {
@@ -16,35 +16,34 @@ interface AdvancedFiltersProps {
 }
 
 export function AdvancedFilters({ isOpen, onClose, currentFilters, onApply }: AdvancedFiltersProps) {
+  // Initialisation de l'état local avec les filtres courants
   const [localFilters, setLocalFilters] = useState<AnalyticsFilters>(currentFilters);
 
   if (!isOpen) return null;
 
+  // Gestion de la sélection multiple des canaux de vente
   const toggleChannel = (channel: string) => {
     const current = localFilters.channels || [];
+    // Cast en 'any' si le type strict des canaux n'est pas importé ici, 
+    // ou utiliser le type précis si disponible dans AnalyticsFilters
     const updated = current.includes(channel as any)
       ? current.filter(c => c !== channel)
       : [...current, channel as any];
     setLocalFilters({ ...localFilters, channels: updated });
   };
 
-  const setPresetDate = (days: number) => {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - days);
-    setLocalFilters({ ...localFilters, dateRange: { start, end } });
-  };
-
-  // Helper safe date access
-  const startDate = localFilters.dateRange?.start ? new Date(localFilters.dateRange.start) : new Date();
-  const endDate = localFilters.dateRange?.end ? new Date(localFilters.dateRange.end) : new Date();
-
   return (
     <>
-      <div className="fixed inset-0 bg-black/30 z-40 backdrop-blur-sm" onClick={onClose} />
+      {/* Overlay sombre */}
+      <div 
+        className="fixed inset-0 bg-black/30 z-40 backdrop-blur-sm" 
+        onClick={onClose} 
+      />
       
+      {/* Panneau latéral */}
       <div className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-white shadow-2xl border-l transform transition-transform duration-300 ease-in-out flex flex-col">
         
+        {/* En-tête */}
         <div className="flex items-center justify-between p-6 border-b">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Filtres Avancés</h2>
@@ -55,63 +54,46 @@ export function AdvancedFilters({ isOpen, onClose, currentFilters, onApply }: Ad
           </Button>
         </div>
 
+        {/* Contenu défilant */}
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
           
+          {/* Section Période */}
           <section className="space-y-3">
             <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
               <Calendar className="h-4 w-4 text-blue-600" /> Période d'analyse
             </h3>
-            <div className="grid grid-cols-3 gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPresetDate(0)} className="text-xs">Aujourd'hui</Button>
-              <Button variant="outline" size="sm" onClick={() => setPresetDate(1)} className="text-xs">Hier</Button>
-              <Button variant="outline" size="sm" onClick={() => setPresetDate(7)} className="text-xs">7 jours</Button>
-              <Button variant="outline" size="sm" onClick={() => setPresetDate(30)} className="text-xs">30 jours</Button>
-              <Button variant="outline" size="sm" onClick={() => setPresetDate(90)} className="text-xs">3 mois</Button>
-              <Button variant="outline" size="sm" onClick={() => setPresetDate(365)} className="text-xs">1 an</Button>
-            </div>
             
-            <div className="flex items-center gap-2 mt-2 p-3 bg-gray-50 rounded-lg border">
-              <div className="flex-1">
-                <span className="text-xs text-gray-500 block">Du</span>
-                <input 
-                  type="date" 
-                  className="bg-transparent text-sm font-medium w-full focus:outline-none"
-                  value={startDate.toISOString().split('T')[0]}
-                  onChange={(e) => setLocalFilters({
-                    ...localFilters, 
-                    dateRange: { start: new Date(e.target.value), end: endDate }
-                  })}
-                />
-              </div>
-              <ArrowRight className="h-4 w-4 text-gray-400" />
-              <div className="flex-1 text-right">
-                <span className="text-xs text-gray-500 block">Au</span>
-                <input 
-                  type="date" 
-                  className="bg-transparent text-sm font-medium w-full text-right focus:outline-none"
-                  value={endDate.toISOString().split('T')[0]}
-                  onChange={(e) => setLocalFilters({
-                    ...localFilters, 
-                    dateRange: { start: startDate, end: new Date(e.target.value) }
-                  })}
-                />
-              </div>
+            {/* Utilisation du composant standardisé DateRangePicker */}
+            <div className="w-full">
+               <DateRangePicker 
+                 value={localFilters.dateRange}
+                 onChange={(range) => setLocalFilters({ ...localFilters, dateRange: range })}
+                 className="w-full"
+                 presets={true} // Active les raccourcis (7 jours, 30 jours...)
+               />
             </div>
 
-            <div className="flex items-center gap-2 mt-2">
+            {/* Option de comparaison */}
+            <div className="flex items-center gap-2 mt-4 pt-2">
                <input 
                  type="checkbox" 
                  id="compare" 
-                 className="rounded border-gray-300"
+                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                  checked={localFilters.comparison === 'previous_period'}
-                 onChange={(e) => setLocalFilters({...localFilters, comparison: e.target.checked ? 'previous_period' : 'none'})}
+                 onChange={(e) => setLocalFilters({
+                   ...localFilters, 
+                   comparison: e.target.checked ? 'previous_period' : 'none'
+                 })}
                />
-               <label htmlFor="compare" className="text-sm text-gray-600">Comparer avec la période précédente</label>
+               <label htmlFor="compare" className="text-sm text-gray-600 cursor-pointer select-none">
+                 Comparer avec la période précédente
+               </label>
             </div>
           </section>
 
           <Separator />
 
+          {/* Section Canaux de vente */}
           <section className="space-y-3">
             <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
               <ShoppingBag className="h-4 w-4 text-purple-600" /> Canaux de vente
@@ -123,7 +105,11 @@ export function AdvancedFilters({ isOpen, onClose, currentFilters, onApply }: Ad
                   <Badge 
                     key={channel}
                     variant={isActive ? "default" : "outline"}
-                    className={`cursor-pointer px-3 py-1 ${isActive ? 'bg-purple-600 hover:bg-purple-700' : 'hover:bg-gray-100'}`}
+                    className={`cursor-pointer px-3 py-1 transition-colors ${
+                      isActive 
+                        ? 'bg-purple-600 hover:bg-purple-700' 
+                        : 'hover:bg-gray-100'
+                    }`}
                     onClick={() => toggleChannel(channel)}
                   >
                     {channel === 'aggregator' ? 'Plateformes' : 
@@ -135,11 +121,9 @@ export function AdvancedFilters({ isOpen, onClose, currentFilters, onApply }: Ad
               })}
             </div>
           </section>
-
-          {/* Reste des sections (Produits, Magasins) inchangée mais connectée à localFilters */}
-          
         </div>
 
+        {/* Pied de page avec actions */}
         <div className="p-6 border-t bg-gray-50 flex items-center justify-between">
           <Button 
             variant="ghost" 

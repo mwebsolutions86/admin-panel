@@ -7,6 +7,7 @@
 export interface TimeSeriesPoint {
   date: string;
   value: number;
+  label?: string; // Ajouté pour flexibilité
 }
 
 export interface DateRange {
@@ -61,17 +62,35 @@ export interface BusinessMetrics {
   ordersOverTime: { date: string; value: number }[];
 }
 
-// ... (Gardez les autres interfaces existantes: CustomerMetrics, OperationalMetrics, etc.)
 export interface CustomerMetrics {
   newCustomers: number;
   activeCustomers: number;
   churnRate: number;
   ltv: number;
+  // Ajout pour compatibilité future si nécessaire
+  customerRetentionRate?: number;
 }
 
 export interface OperationalMetrics {
   averageDeliveryTime: number;
   customerSatisfaction: number;
+  
+  // CORRECTION : Réintégration des objets requis par DeliveryPerformance.tsx
+  deliveryTimeDistribution: {
+    under30min: number;
+    between30to45min: number;
+    between45to60min: number;
+    over60min: number;
+  };
+  
+  deliveryPersonMetrics: {
+    totalActive: number;
+    averageDeliveriesPerDay: number;
+    averageDeliveryTime?: number;
+    customerRating: number;
+  };
+
+  // Champs optionnels existants
   onTimeDeliveryRate?: number;
   orderAccuracyRate?: number;
   averagePreparationTime?: number;
@@ -82,14 +101,24 @@ export interface OperationalMetrics {
 
 export interface ProductAnalytics {
   topProducts: any[];
+  // Ajout pour éviter des erreurs si d'autres composants cherchent ces champs
+  categoryPerformance?: any[];
+  menuAnalysis?: any;
 }
 
 export interface MarketingMetrics {
   campaigns: any[];
+  // Ajout pour compatibilité
+  channelPerformance?: any;
 }
 
 export interface PerformanceMetrics {
   uptime: number;
+  responseTime?: {
+    api: number;
+    database: number;
+    frontend: number;
+  };
 }
 
 export interface StoreMetrics {
@@ -107,6 +136,7 @@ export interface KPIConfig {
   value: number;
   target: number;
   unit: string;
+  category?: string; // Ajouté pour compatibilité
 }
 
 export interface AnalyticsAlert {
@@ -115,21 +145,29 @@ export interface AnalyticsAlert {
   severity: 'low' | 'medium' | 'high';
   date: string;
   isResolved: boolean;
+  type?: string; // Ajouté pour compatibilité
 }
 
 export interface ReportConfig {
   id: string;
   name: string;
+  description?: string;
+  type?: string;
 }
 
 export interface ReportData {
   url: string;
+  // Ajout pour compatibilité avec le hook useAnalytics qui pourrait renvoyer plus
+  generatedAt?: string;
 }
 
 export interface TrendAnalysis {
   trend: 'up' | 'down' | 'stable';
+  current?: number;
+  predicted?: number;
 }
 
 export interface DashboardConfig {
   layout: string;
+  refreshInterval?: number;
 }

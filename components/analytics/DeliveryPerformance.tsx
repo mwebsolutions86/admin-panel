@@ -18,26 +18,45 @@ export function DeliveryPerformance({
   height = 300, 
   className = '' 
 }: DeliveryPerformanceProps) {
+
+  // --- SÉCURISATION (FIX CRASH RUNTIME) ---
+  // Si data.deliveryTimeDistribution n'existe pas, on utilise un objet vide par défaut
+  const distribution = data?.deliveryTimeDistribution || {
+    under30min: 0,
+    between30to45min: 0,
+    between45to60min: 0,
+    over60min: 0
+  };
+
+  // Pareil pour les métriques livreurs
+  const deliveryMetrics = data?.deliveryPersonMetrics || {
+    totalActive: 0,
+    averageDeliveriesPerDay: 0,
+    averageDeliveryTime: 0,
+    customerRating: 0
+  };
+  // ----------------------------------------
+
   // Convertir la distribution en données pour le graphique
   const chartData = [
     { 
       name: '< 30 min', 
-      value: data.deliveryTimeDistribution.under30min,
+      value: distribution.under30min,
       color: '#10b981' // Vert
     },
     { 
       name: '30-45 min', 
-      value: data.deliveryTimeDistribution.between30to45min,
+      value: distribution.between30to45min,
       color: '#f59e0b' // Orange
     },
     { 
       name: '45-60 min', 
-      value: data.deliveryTimeDistribution.between45to60min,
+      value: distribution.between45to60min,
       color: '#ef4444' // Rouge
     },
     { 
       name: '> 60 min', 
-      value: data.deliveryTimeDistribution.over60min,
+      value: distribution.over60min,
       color: '#7c2d12' // Rouge foncé
     }
   ];
@@ -45,12 +64,12 @@ export function DeliveryPerformance({
   // Formatter pour les tooltips
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
-      const data = payload[0].payload;
+      const pointData = payload[0].payload;
       return (
         <div className="bg-white border rounded-lg shadow-lg p-3">
-          <p className="font-medium">{data.name}</p>
-          <p style={{ color: data.color }}>
-            {data.value}% des livraisons
+          <p className="font-medium">{pointData.name}</p>
+          <p style={{ color: pointData.color }}>
+            {pointData.value}% des livraisons
           </p>
         </div>
       );
@@ -95,14 +114,14 @@ export function DeliveryPerformance({
       <div className="mt-6 grid grid-cols-2 gap-4">
         <div className="text-center p-3 bg-green-50 rounded-lg">
           <p className="text-2xl font-bold text-green-600">
-            {data.averageDeliveryTime.toFixed(1)} min
+            {data?.averageDeliveryTime ? data.averageDeliveryTime.toFixed(1) : '0.0'} min
           </p>
           <p className="text-sm text-muted-foreground">Temps moyen</p>
         </div>
         
         <div className="text-center p-3 bg-blue-50 rounded-lg">
           <p className="text-2xl font-bold text-blue-600">
-            {data.deliveryTimeDistribution.under30min}%
+            {distribution.under30min}%
           </p>
           <p className="text-sm text-muted-foreground">Livraisons &lt; 30min</p>
         </div>
@@ -114,15 +133,17 @@ export function DeliveryPerformance({
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span>Livreurs actifs</span>
-            <span className="font-medium">{data.deliveryPersonMetrics.totalActive}</span>
+            <span className="font-medium">{deliveryMetrics.totalActive}</span>
           </div>
           <div className="flex justify-between">
             <span>Livraisons/jour</span>
-            <span className="font-medium">{data.deliveryPersonMetrics.averageDeliveriesPerDay}</span>
+            <span className="font-medium">{deliveryMetrics.averageDeliveriesPerDay}</span>
           </div>
           <div className="flex justify-between">
             <span>Note moyenne</span>
-            <span className="font-medium">{data.deliveryPersonMetrics.customerRating.toFixed(1)}/5</span>
+            <span className="font-medium">
+              {deliveryMetrics.customerRating ? deliveryMetrics.customerRating.toFixed(1) : '0.0'}/5
+            </span>
           </div>
         </div>
       </div>

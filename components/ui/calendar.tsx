@@ -1,5 +1,4 @@
 import * as React from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
 import { DayPicker } from "react-day-picker"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
@@ -28,11 +27,21 @@ function Calendar({
         ),
         nav_button_previous: "absolute left-1",
         nav_button_next: "absolute right-1",
-        table: "w-full border-collapse space-y-1",
-        head_row: "flex",
+        
+        // CORRECTION 1 : Suppression de w-full pour éviter l'étirement des colonnes
+        // Suppression de space-y-1 qui cause des problèmes sur les <tr>
+        // Ajout de m-auto pour centrer le tableau
+        table: "border-collapse m-auto", 
+        
+        // CORRECTION 2 : Pas de flex sur les lignes (tr) pour alignement natif
+        head_row: "", 
+        
         head_cell:
           "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
-        row: "flex w-full mt-2",
+        
+        // CORRECTION 3 : Suppression des marges sur les lignes (tr ne supporte pas mt-2)
+        row: "", 
+        
         cell: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
         day: cn(
           buttonVariants({ variant: "ghost" }),
@@ -50,10 +59,6 @@ function Calendar({
         day_hidden: "invisible",
         ...classNames,
       }}
-      components={{
-        IconLeft: ({ ...props }) => <ChevronLeft className="h-4 w-4" />,
-        IconRight: ({ ...props }) => <ChevronRight className="h-4 w-4" />,
-      } as any}
       {...props}
     />
   )
