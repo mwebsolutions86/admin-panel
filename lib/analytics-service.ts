@@ -1,18 +1,14 @@
 import { supabase } from './supabase';
 import { 
   BusinessMetrics, StoreMetrics, ProductAnalytics, CustomerMetrics, 
-  MarketingMetrics, OperationalMetrics, AnalyticsFilters, TimeSeriesPoint 
+  OperationalMetrics, AnalyticsFilters, TimeSeriesPoint 
 } from '@/types/analytics';
 
-// --- FONCTIONS UTILITAIRES ---
-
-// Calcul du pourcentage de croissance
 const calculateGrowth = (current: number, previous: number): number => {
   if (previous === 0) return current > 0 ? 100 : 0;
   return ((current - previous) / previous) * 100;
 };
 
-// Obtention de la période précédente
 const getPreviousPeriod = (start: Date, end: Date) => {
   const duration = end.getTime() - start.getTime();
   const prevEnd = new Date(start.getTime()); 
@@ -28,7 +24,6 @@ export class AnalyticsService {
     return AnalyticsService.instance;
   }
 
-  // --- 1. MÉTRIQUES BUSINESS (CA, Commandes, Panier Moyen) ---
   async getBusinessMetrics(filters?: AnalyticsFilters): Promise<BusinessMetrics> {
     try {
       const endDate = filters?.dateRange?.end ? new Date(filters.dateRange.end) : new Date();
@@ -39,22 +34,23 @@ export class AnalyticsService {
 
       const { prevStart, prevEnd } = getPreviousPeriod(startDate, endDate);
 
-      // Requête Période Actuelle
+      // Période Actuelle
       let queryCurrent = supabase
         .from('orders')
-        .select('id, total_amount, created_at, status, store_id')
+        .select('id, total_amount, created_at, status')
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString())
-        .neq('status', 'cancelled'); // Tout sauf annulé
+        .neq('status', 'cancelled');
 
       if (filters?.stores && filters.stores.length > 0) {
         queryCurrent = queryCurrent.in('store_id', filters.stores);
       }
 
-      const { data: currentOrdersData } = await queryCurrent;
-      const currentOrders = currentOrdersData || [];
+      const { data: currentData, error: currError } = await queryCurrent;
+      if (currError) throw currError;
+      const currentOrders = currentData || [];
 
-      // Requête Période Précédente
+      // Période Précédente
       let queryPrev = supabase
         .from('orders')
         .select('total_amount')
@@ -66,8 +62,8 @@ export class AnalyticsService {
         queryPrev = queryPrev.in('store_id', filters.stores);
       }
 
-      const { data: prevOrdersData } = await queryPrev;
-      const prevOrders = prevOrdersData || [];
+      const { data: prevData } = await queryPrev;
+      const prevOrders = prevData || [];
 
       // Calculs
       const currentRevenue = currentOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
@@ -79,15 +75,15 @@ export class AnalyticsService {
       const currentBasket = currentCount > 0 ? currentRevenue / currentCount : 0;
       const prevBasket = prevCount > 0 ? prevRevenue / prevCount : 0;
 
-      // Agrégations pour les graphes
-      const dailyRevenue = this.aggregateByDay(currentOrders, startDate, endDate);
-      const hourlyRevenue = this.aggregateByHour(currentOrders);
+      const dailyRevenue = this.aggregateByDay(currentOrders, startDate, endDate, 'total_amount');
+      const hourlyRevenue = this.aggregateByHour(currentOrders, 'total_amount');
+      const ordersOverTime = this.aggregateByDay(currentOrders, startDate, endDate, 'count');
       const revenueOverTime = dailyRevenue.map(p => ({ date: p.date, value: p.value }));
-      const ordersOverTime = this.aggregateOrdersByDay(currentOrders, startDate, endDate);
 
       return {
         totalRevenue: currentRevenue,
         ordersCount: currentCount,
+        totalOrders: currentCount,
         averageBasket: currentBasket,
         averageOrderValue: currentBasket,
         
@@ -95,9 +91,11 @@ export class AnalyticsService {
         ordersGrowth: calculateGrowth(currentCount, prevCount),
         averageBasketGrowth: calculateGrowth(currentBasket, prevBasket),
         
-        grossMargin: currentRevenue * 0.70, // Estimation
-        netMargin: currentRevenue * 0.15,   // Estimation
-        profitMargin: 15,
+        grossMargin: currentRevenue * 0.3, // Estimation
+        netMargin: currentRevenue * 0.1, // Estimation
+        profitMargin: 10,
+        activeUsers: 0, 
+        cancelledOrders: 0,
         
         hourlyRevenue,
         dailyRevenue,
@@ -120,246 +118,265 @@ export class AnalyticsService {
     }
   }
 
-  // --- 2. MÉTRIQUES OPÉRATIONNELLES (Satisfaction, Temps de livraison) ---
-  async getOperationalMetrics(filters?: AnalyticsFilters): Promise<OperationalMetrics> {
+  async getProductAnalytics(filters?: AnalyticsFilters): Promise<ProductAnalytics> {
     try {
-      const start = filters?.dateRange?.start ? new Date(filters.dateRange.start) : new Date(new Date().setDate(new Date().getDate() - 30));
-      const end = filters?.dateRange?.end ? new Date(filters.dateRange.end) : new Date();
+      const startDate = filters?.dateRange?.start ? new Date(filters.dateRange.start) : new Date(Date.now() - 30*24*60*60*1000);
+      const endDate = filters?.dateRange?.end ? new Date(filters.dateRange.end) : new Date();
 
-      // Récupérer les données opérationnelles
       let query = supabase
-        .from('orders')
-        .select('rating, delivery_time, created_at, status')
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString())
-        .neq('status', 'cancelled');
+        .from('order_items')
+        .select(`
+          product_id, 
+          product_name, 
+          quantity, 
+          total_price, 
+          orders!inner (
+            created_at, 
+            store_id,
+            status
+          )
+        `)
+        .gte('orders.created_at', startDate.toISOString())
+        .lte('orders.created_at', endDate.toISOString())
+        .neq('orders.status', 'cancelled');
 
-      if (filters?.stores?.length) query = query.in('store_id', filters.stores);
+      if (filters?.stores && filters.stores.length > 0) {
+        query = query.in('orders.store_id', filters.stores);
+      }
 
-      const { data: opsData, error } = await query;
-      
+      const { data, error } = await query;
       if (error) throw error;
 
-      const orders = opsData || [];
-      
-      // Filtrer les commandes qui ont une note
-      const ratedOrders = orders.filter(o => o.rating != null);
-      const deliveredOrders = orders.filter(o => o.delivery_time != null);
+      const stats = new Map<string, { name: string; revenue: number; quantity: number }>();
 
-      // Calcul Satisfaction (Moyenne)
-      const avgRating = ratedOrders.length > 0 
-        ? ratedOrders.reduce((sum, o) => sum + Number(o.rating), 0) / ratedOrders.length 
-        : 0; // 0 indique "pas de donnée" (affiché 4.5 dans le fallback UI si besoin)
+      (data || []).forEach((item: any) => {
+        const key = item.product_id || item.product_name || 'unknown';
+        const current = stats.get(key) || { name: item.product_name, revenue: 0, quantity: 0 };
+        current.revenue += (Number(item.total_price) || 0);
+        current.quantity += (Number(item.quantity) || 0);
+        stats.set(key, current);
+      });
 
-      // Calcul Temps Livraison (Moyenne)
-      const avgDeliveryTime = deliveredOrders.length > 0
-        ? deliveredOrders.reduce((sum, o) => sum + Number(o.delivery_time), 0) / deliveredOrders.length
-        : 0;
+      // CORRECTION ICI : Mapping explicite vers l'interface ProductAnalytics
+      const topSellingProducts = Array.from(stats.entries())
+        .map(([id, stat]) => ({
+          productId: id,
+          productName: stat.name,
+          revenue: stat.revenue,
+          quantity: stat.quantity,
+          salesCount: stat.quantity, // Alias pour compatibilité
+          trend: 'stable'
+        }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10);
+
+      const totalItems = (data || []).reduce((sum: number, i: any) => sum + (Number(i.quantity)||0), 0);
+      const totalRevenue = (data || []).reduce((sum: number, i: any) => sum + (Number(i.total_price)||0), 0);
 
       return {
-        customerSatisfaction: Number(avgRating.toFixed(1)), // ex: 4.5
-        averageDeliveryTime: Math.round(avgDeliveryTime),   // ex: 25 min
-        
-        // Données complémentaires (Mockées ou calculées si possible)
-        onTimeDeliveryRate: 95, 
-        orderAccuracyRate: 98,
-        activeDrivers: 12,
-        totalDeliveries: orders.length
-      } as any;
+        topSellingProducts,
+        topProducts: topSellingProducts,
+        trendingProducts: topSellingProducts.slice(0, 5),
+        categoryPerformance: [],
+        menuAnalysis: {
+          totalItemsSold: totalItems,
+          uniqueProductsSold: stats.size,
+          totalProducts: stats.size,
+          activeProducts: stats.size,
+          outOfStock: 0,
+          averagePrice: totalItems > 0 ? totalRevenue / totalItems : 0,
+          priceRange: { min: 0, max: 0 }
+        }
+      };
 
     } catch (e) {
-      console.error("Erreur getOperationalMetrics:", e);
-      // Retour safe
+      console.error("Erreur getProductAnalytics:", e);
       return { 
-        averageDeliveryTime: 0, 
-        customerSatisfaction: 0, 
-        onTimeDeliveryRate: 0 
-      } as any;
+        topSellingProducts: [], 
+        topProducts: [], 
+        trendingProducts: [], 
+        categoryPerformance: [],
+        menuAnalysis: { 
+            totalItemsSold: 0, 
+            uniqueProductsSold: 0,
+            totalProducts: 0,
+            activeProducts: 0,
+            outOfStock: 0,
+            averagePrice: 0,
+            priceRange: { min: 0, max: 0 }
+        } 
+      };
     }
   }
 
-  // --- 3. MÉTRIQUES CLIENTS (Nouveaux clients) ---
   async getCustomerMetrics(filters?: AnalyticsFilters): Promise<CustomerMetrics> {
     try {
-      const start = filters?.dateRange?.start ? new Date(filters.dateRange.start) : new Date(new Date().setDate(new Date().getDate() - 30));
-      const end = filters?.dateRange?.end ? new Date(filters.dateRange.end) : new Date();
+      const startDate = filters?.dateRange?.start ? new Date(filters.dateRange.start) : new Date(Date.now() - 30*24*60*60*1000);
+      const endDate = filters?.dateRange?.end ? new Date(filters.dateRange.end) : new Date();
 
-      // Compter les nouveaux utilisateurs créés dans la période
-      // Note: On suppose une table 'users' ou 'profiles'
-      const { count: newCount, error } = await supabase
-        .from('users') 
+      const { count: newCount } = await supabase
+        .from('cust_profiles')
         .select('*', { count: 'exact', head: true })
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString());
 
-      let finalNewCount = newCount || 0;
-
-      if (error) {
-         console.warn("Table users introuvable ou erreur RLS, tentative fallback via orders");
-         // Fallback: Compter les premiers commandes uniques dans cette période
-         // C'est approximatif mais mieux que 0
-         finalNewCount = 0; 
-      }
-
-      // Compter les actifs (ceux qui ont commandé)
       const { count: activeCount } = await supabase
         .from('orders')
         .select('user_id', { count: 'exact', head: true })
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString())
+        .not('user_id', 'is', null);
 
       return {
-        newCustomers: finalNewCount,
+        totalCustomers: 0,
+        newCustomers: newCount || 0,
         activeCustomers: activeCount || 0,
+        repeatRate: 0,
         churnRate: 0,
-        ltv: 0
-      } as any;
+        customerLtv: 0,
+        ltv: 0,
+        segments: []
+      };
 
     } catch (e) {
       console.error("Erreur getCustomerMetrics:", e);
-      return { newCustomers: 0, activeCustomers: 0, churnRate: 0, ltv: 0 } as any;
+      return { totalCustomers: 0, newCustomers: 0, activeCustomers: 0, repeatRate: 0, churnRate: 0, customerLtv: 0, ltv: 0, segments: [] };
     }
   }
 
-  // --- 4. MÉTRIQUES MAGASINS (Dynamique) ---
-  async getStoreMetrics(storeIds?: string[] | undefined): Promise<StoreMetrics[]> {
+  async getOperationalMetrics(filters?: AnalyticsFilters): Promise<OperationalMetrics> {
+    return {
+      averageDeliveryTime: 0,
+      customerSatisfaction: 0,
+      onTimeDeliveryRate: 0,
+      orderAccuracyRate: 0,
+      averagePreparationTime: 0,
+      driverUtilizationRate: 0,
+      activeDrivers: 0,
+      totalDeliveries: 0,
+      complaintRate: 0,
+      deliveryTimeDistribution: { 
+        under30min: 0, 
+        between30to45min: 0, 
+        between45to60min: 0, 
+        over60min: 0 
+      },
+      deliveryPersonMetrics: [],
+      preparationTimeByCategory: [],
+      orderAccuracy: 0,
+      heatmapData: [],
+      peakHours: [],
+      storeAvailability: { openStores: 0, closedStores: 0, averageOpeningHours: 0 }
+    };
+  }
+
+  async getStoreMetrics(storeIds?: string[]): Promise<StoreMetrics[]> {
     try {
-      // Récupérer les stats des commandes
-      let ordersQuery = supabase.from('orders')
-        .select('store_id, total_amount, status')
-        .neq('status', 'cancelled');
-
-      if (storeIds?.length) ordersQuery = ordersQuery.in('store_id', storeIds);
-      const { data: orders } = await ordersQuery;
-
-      const stats = new Map<string, { rev: number, count: number }>();
-      (orders || []).forEach(o => {
-        if (!o.store_id) return;
-        const curr = stats.get(o.store_id) || { rev: 0, count: 0 };
-        curr.rev += (Number(o.total_amount) || 0);
-        curr.count++;
-        stats.set(o.store_id, curr);
-      });
-
-      // Récupérer les vrais noms des magasins
-      let storesQuery = supabase.from('stores').select('id, name');
-      if (storeIds?.length) storesQuery = storesQuery.in('id', storeIds);
+      let storeQuery = supabase.from('stores').select('id, name');
+      if (storeIds?.length) storeQuery = storeQuery.in('id', storeIds);
       
-      const { data: storesData, error: storesError } = await storesQuery;
+      const { data: stores, error: sError } = await storeQuery;
+      if (sError) throw sError;
 
-      if (storesError || !storesData) return [];
+      if (!stores || stores.length === 0) return [];
 
-      const metrics: StoreMetrics[] = storesData.map(store => {
-        const s = stats.get(store.id) || { rev: 0, count: 0 };
-        
-        return {
-          storeId: store.id,
-          storeName: store.name,
-          totalRevenue: s.rev,
-          totalOrders: s.count,
-          ordersCount: s.count,
-          averageBasket: s.count ? s.rev / s.count : 0,
-          averageOrderValue: s.count ? s.rev / s.count : 0,
-          rating: 4.5, // Mock en attendant table reviews
-          customerSatisfaction: 4.5,
-          deliveryTime: 25, // Mock en attendant logistique
-          performance: s.rev > 0 ? 'good' : 'average',
-          location: { lat: 30.42, lng: -9.59, address: 'Agadir' }
-        } as any;
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('store_id, total_amount')
+        .neq('status', 'cancelled')
+        .gte('created_at', new Date(Date.now() - 30*24*60*60*1000).toISOString());
+
+      const metricsMap = new Map<string, StoreMetrics>();
+
+      stores.forEach(s => {
+        metricsMap.set(s.id, {
+          storeId: s.id,
+          storeName: s.name,
+          totalRevenue: 0,
+          totalOrders: 0,
+          averageBasket: 0,
+          rating: 0
+        });
       });
 
-      return metrics.sort((a,b) => b.totalRevenue - a.totalRevenue);
+      (orders || []).forEach((o: any) => {
+        const m = metricsMap.get(o.store_id);
+        if (m) {
+          m.totalRevenue += (Number(o.total_amount) || 0);
+          m.totalOrders += 1;
+        }
+      });
+
+      return Array.from(metricsMap.values()).map(m => ({
+        ...m,
+        averageBasket: m.totalOrders > 0 ? m.totalRevenue / m.totalOrders : 0
+      }));
+
     } catch (e) {
       console.error("Erreur getStoreMetrics:", e);
-      return []; 
+      return [];
     }
   }
 
-  // --- AGGREGATEURS PRIVÉS ---
-
-  private aggregateByHour(orders: any[]): TimeSeriesPoint[] {
+  private aggregateByHour(data: any[], valueKey: string): TimeSeriesPoint[] {
     const counts = new Array(24).fill(0);
-    orders.forEach(o => {
-      const d = new Date(o.created_at);
+    data.forEach(item => {
+      const d = new Date(item.created_at);
       if (!isNaN(d.getTime())) {
-        counts[d.getHours()] += (Number(o.total_amount) || 0);
+        const val = valueKey === 'count' ? 1 : (Number(item[valueKey]) || 0);
+        counts[d.getHours()] += val;
       }
     });
     return counts.map((v, h) => ({ date: `${h}h`, value: v }));
   }
 
-  private aggregateByDay(orders: any[], start: Date, end: Date): TimeSeriesPoint[] {
+  private aggregateByDay(data: any[], start: Date, end: Date, valueKey: string): TimeSeriesPoint[] {
     const map = new Map<string, number>();
     const current = new Date(start);
     
     let loops = 0;
     while (current <= end && loops < 366) {
-      map.set(current.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }), 0);
+      const k = current.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+      map.set(k, 0);
       current.setDate(current.getDate() + 1);
       loops++;
     }
 
-    orders.forEach(o => {
-      const d = new Date(o.created_at);
+    data.forEach(item => {
+      const d = new Date(item.created_at);
       if (!isNaN(d.getTime())) {
         const k = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
         if (map.has(k)) {
-          map.set(k, (map.get(k)||0) + (Number(o.total_amount)||0));
+          const val = valueKey === 'count' ? 1 : (Number(item[valueKey]) || 0);
+          map.set(k, (map.get(k)||0) + val);
         }
       }
     });
 
-    return Array.from(map.entries()).map(([date, value]) => ({ date, value }));
-  }
-
-  private aggregateOrdersByDay(orders: any[], start: Date, end: Date): { date: string, value: number }[] {
-    const map = new Map<string, number>();
-    const current = new Date(start);
-    
-    let loops = 0;
-    while (current <= end && loops < 366) {
-      map.set(current.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }), 0);
-      current.setDate(current.getDate() + 1);
-      loops++;
-    }
-
-    orders.forEach(o => {
-      const d = new Date(o.created_at);
-      if (!isNaN(d.getTime())) {
-        const k = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
-        if (map.has(k)) {
-          map.set(k, (map.get(k)||0) + 1);
-        }
-      }
-    });
     return Array.from(map.entries()).map(([date, value]) => ({ date, value }));
   }
 
   private getEmptyMetrics(): BusinessMetrics {
     return { 
-      totalRevenue: 0, ordersCount: 0, averageBasket: 0, averageOrderValue: 0, 
+      totalRevenue: 0, totalOrders: 0, ordersCount: 0, averageBasket: 0, averageOrderValue: 0, 
       revenueGrowth: 0, ordersGrowth: 0, averageBasketGrowth: 0,
-      grossMargin: 0, netMargin: 0, profitMargin: 0, 
+      grossMargin: 0, netMargin: 0, profitMargin: 0, activeUsers: 0, cancelledOrders: 0,
       hourlyRevenue: [], dailyRevenue: [], monthlyRevenue: [], 
       periodComparison: { thisWeek: 0, lastWeek: 0, thisMonth: 0, lastMonth: 0 },
       revenueOverTime: [], ordersOverTime: []
     };
   }
 
-  // --- MÉTHODES STUBS (Pour compatibilité interface) ---
-  async getProductAnalytics(filters?: AnalyticsFilters) {
-    return { topSellingProducts: [], categoryPerformance: [], menuAnalysis: {}, trendingProducts: [], topProducts: [] } as any;
-  }
-  async getMarketingMetrics(filters?: AnalyticsFilters) { return { campaigns: [] } as any; }
-  async getPerformanceMetrics() { return { uptime: 100 } as any; }
-  async getKPIConfigs(): Promise<any[]> { return []; }
-  async updateKPIConfig(config: any): Promise<void> { return; }
-  async checkKPIThresholds(): Promise<any[]> { return []; }
-  async trackEvent(event: any): Promise<void> { return; }
-  async trackOrderEvent(orderId: string, type: string, metadata: any = {}): Promise<void> { return; }
-  async trackUserAction(userId: string, action: string, metadata: any = {}): Promise<void> { return; }
-  async analyzeTrends(metric: string, timeHorizon: string) { return { trend: 'stable' } as any; }
-  async generateReport(id: string, filters?: any) { return { url: '' } as any; }
+  async getMarketingMetrics() { return { activeCampaigns: 0, conversionRate: 0, cac: 0, roi: 0, campaigns: [] }; }
+  async getPerformanceMetrics() { return { uptime: 100, errorRate: { total: 0 } }; }
+  async getKPIConfigs() { return []; }
+  async updateKPIConfig() { return; }
+  async checkKPIThresholds() { return []; }
+  async trackEvent() { return; }
+  async trackOrderEvent() { return; }
+  async trackUserAction() { return; }
+  async analyzeTrends() { return { metric: '', timeHorizon: '', trend: 0, data: [], insights: [] }; }
+  async generateReport() { return { id: '', generatedAt: '', url: '', config: {} as any }; }
 }
 
 export const analyticsService = AnalyticsService.getInstance();

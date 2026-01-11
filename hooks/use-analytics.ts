@@ -69,7 +69,7 @@ export function useAnalytics(options: UseAnalyticsOptions = {}) {
         // analyticsService currently exposes parameter-less implementations for these metrics
         analyticsService.getCustomerMetrics(),
         analyticsService.getOperationalMetrics(),
-        analyticsService.getProductAnalytics(),
+        analyticsService.getProductAnalytics(currentFilters),
         // Marketing/performance/kpi methods may not exist on the concrete service (use defensive calls)
         (analyticsService as any).getMarketingMetrics ? (analyticsService as any).getMarketingMetrics(currentFilters) : null,
         (analyticsService as any).getPerformanceMetrics ? (analyticsService as any).getPerformanceMetrics() : null,
@@ -118,7 +118,7 @@ export function useAnalytics(options: UseAnalyticsOptions = {}) {
           setOperationalMetrics(data);
           break;
         case 'product':
-          data = await analyticsService.getProductAnalytics();
+          data = await analyticsService.getProductAnalytics(currentFilters);
           setProductAnalytics(data);
           break;
         case 'marketing':

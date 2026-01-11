@@ -1,81 +1,72 @@
-/**
- * Types pour le module Analytics
- * Universal Eats
- */
+// types/analytics.ts
 
-// Définition explicite pour résoudre l'erreur "Property date does not exist"
+// Définition explicite pour les graphiques
 export interface TimeSeriesPoint {
   date: string;
   value: number;
-  label?: string; // Ajouté pour flexibilité
+  label?: string; 
+  timestamp?: string; // Ajout pour compatibilité avec les timestamps bruts
 }
 
+// Interface pour les plages de dates (utilisée par les filtres)
 export interface DateRange {
-  start: Date;
-  end: Date;
+  start: Date | string;
+  end: Date | string;
 }
 
+// Filtres globaux
 export interface AnalyticsFilters {
   dateRange?: DateRange;
-  comparison?: 'previous_period' | 'year_over_year' | 'none';
+  comparison?: boolean | 'previous_period' | 'year_over_year' | 'none';
   stores?: string[];
-  channels?: ('delivery' | 'pickup' | 'dine_in' | 'aggregator')[];
+  channels?: string[];
   categories?: string[];
-  products?: string[];
-  minOrderValue?: number;
-  tags?: string[];
   orderTypes?: string[];
 }
 
+// Métriques Business (Revenus, Commandes)
 export interface BusinessMetrics {
-  // KPIs principaux
   totalRevenue: number;
-  ordersCount: number;
+  totalOrders: number;
+  ordersCount: number; // Alias pour rétro-compatibilité
   averageBasket: number;
-  averageOrderValue: number; // Redondant mais demandé pour compatibilité
-  
-  // Croissance (Pourcentages simples)
-  revenueGrowth: number;      
-  ordersGrowth: number;       
-  averageBasketGrowth: number; 
-  
-  // Marges
+  averageOrderValue: number; // Alias
+  revenueGrowth: number;
+  ordersGrowth: number;
+  averageBasketGrowth: number;
+  activeUsers: number;
+  cancelledOrders: number;
   grossMargin: number;
   netMargin: number;
   profitMargin: number;
   
-  // Séries temporelles
-  hourlyRevenue: TimeSeriesPoint[];
+  // Données graphiques
+  revenueOverTime: TimeSeriesPoint[];
+  ordersOverTime: TimeSeriesPoint[];
   dailyRevenue: TimeSeriesPoint[];
+  hourlyRevenue: TimeSeriesPoint[];
   monthlyRevenue: TimeSeriesPoint[];
   
-  // Comparaison Périodique
-  periodComparison: { 
-    thisWeek: number; 
-    lastWeek: number; 
-    thisMonth: number; 
-    lastMonth: number 
+  periodComparison: {
+    thisWeek: number;
+    lastWeek: number;
+    thisMonth: number;
+    lastMonth: number;
   };
-  
-  // Graphiques (Compatibilité Recharts)
-  revenueOverTime: { date: string; value: number }[];
-  ordersOverTime: { date: string; value: number }[];
 }
 
-export interface CustomerMetrics {
-  newCustomers: number;
-  activeCustomers: number;
-  churnRate: number;
-  ltv: number;
-  // Ajout pour compatibilité future si nécessaire
-  customerRetentionRate?: number;
-}
-
+// Métriques Opérationnelles (Livraison, Cuisine)
 export interface OperationalMetrics {
   averageDeliveryTime: number;
+  onTimeDeliveryRate: number;
   customerSatisfaction: number;
+  orderAccuracyRate: number;
+  averagePreparationTime: number;
+  driverUtilizationRate: number;
+  activeDrivers: number;
+  totalDeliveries: number;
+  complaintRate: number;
   
-  // CORRECTION : Réintégration des objets requis par DeliveryPerformance.tsx
   deliveryTimeDistribution: {
     under30min: number;
     between30to45min: number;
@@ -84,41 +75,81 @@ export interface OperationalMetrics {
   };
   
   deliveryPersonMetrics: {
-    totalActive: number;
-    averageDeliveriesPerDay: number;
-    averageDeliveryTime?: number;
-    customerRating: number;
+    name: string;
+    deliveries: number;
+    rating: number;
+    id?: string;
+  }[]; // Typage strict du tableau
+
+  preparationTimeByCategory: any[];
+  orderAccuracy: number;
+  heatmapData: any[];
+  peakHours: any[];
+  
+  storeAvailability: {
+    openStores: number;
+    closedStores: number;
+    averageOpeningHours: number;
   };
-
-  // Champs optionnels existants
-  onTimeDeliveryRate?: number;
-  orderAccuracyRate?: number;
-  averagePreparationTime?: number;
-  driverUtilizationRate?: number;
-  activeDrivers?: number;
-  totalDeliveries?: number;
 }
 
+// Métriques Clients
+export interface CustomerMetrics {
+  totalCustomers: number;
+  newCustomers: number;
+  activeCustomers: number;
+  repeatRate: number;
+  churnRate: number;
+  customerLtv: number;
+  ltv: number; // Alias
+  segments: any[];
+  customerRetentionRate?: number;
+  customerLifetimeValue?: number;
+}
+
+// Métriques Produits (Le point de friction précédent)
 export interface ProductAnalytics {
-  topProducts: any[];
-  // Ajout pour éviter des erreurs si d'autres composants cherchent ces champs
-  categoryPerformance?: any[];
-  menuAnalysis?: any;
+  topSellingProducts: {
+    productId: string;
+    productName: string;
+    revenue: number;
+    quantity: number;
+    ordersCount?: number;
+    trend?: string;
+    salesCount?: number; // Alias possible
+  }[];
+  
+  topProducts: any[]; // Alias générique
+  trendingProducts: any[];
+  categoryPerformance: any[];
+  
+  menuAnalysis: {
+    totalItemsSold: number;
+    uniqueProductsSold: number;
+    totalProducts: number;
+    activeProducts: number;
+    outOfStock: number;
+    averagePrice: number;
+    priceRange: { min: number; max: number };
+    profitability?: string;
+  };
 }
 
+// Autres Interfaces (Marketing, Performance, etc.)
 export interface MarketingMetrics {
+  activeCampaigns: number;
+  conversionRate: number;
+  cac: number;
+  roi: number;
   campaigns: any[];
-  // Ajout pour compatibilité
-  channelPerformance?: any;
 }
 
 export interface PerformanceMetrics {
-  uptime: number;
-  responseTime?: {
-    api: number;
-    database: number;
-    frontend: number;
-  };
+  uptime: number | { percentage: number };
+  apiLatency?: number;
+  errorRate: number | { total: number };
+  appCrashes?: number;
+  responseTime?: { api: number; database: number; frontend: number };
 }
 
 export interface StoreMetrics {
@@ -132,42 +163,75 @@ export interface StoreMetrics {
 
 export interface KPIConfig {
   id: string;
-  label: string;
-  value: number;
+  label?: string;
+  name?: string;
+  value?: number;
   target: number;
   unit: string;
-  category?: string; // Ajouté pour compatibilité
+  trend?: number;
+  category?: string;
+  frequency?: string;
+  isAlertEnabled?: boolean;
+  alertThresholds?: { warning: number; critical: number };
+  description?: string;
 }
 
 export interface AnalyticsAlert {
   id: string;
+  type: 'info' | 'warning' | 'critical';
   message: string;
-  severity: 'low' | 'medium' | 'high';
-  date: string;
-  isResolved: boolean;
-  type?: string; // Ajouté pour compatibilité
+  title?: string;
+  timestamp?: string;
+  metric?: string;
+  severity?: 'low' | 'medium' | 'high'; // Alias
+  date?: string; // Alias
+  isResolved?: boolean;
 }
 
 export interface ReportConfig {
   id: string;
   name: string;
-  description?: string;
-  type?: string;
+  description: string;
+  type: string;
+  frequency: 'daily' | 'weekly' | 'monthly';
+  format: 'pdf' | 'excel' | 'csv';
+  recipients: string[];
+  filters: AnalyticsFilters;
+  isActive: boolean;
 }
 
 export interface ReportData {
+  id: string;
+  generatedAt: string;
   url: string;
-  // Ajout pour compatibilité avec le hook useAnalytics qui pourrait renvoyer plus
-  generatedAt?: string;
+  config: ReportConfig;
+  data?: any;
+  filename?: string;
 }
 
 export interface TrendAnalysis {
-  trend: 'up' | 'down' | 'stable';
+  metric: string;
+  timeHorizon: string;
+  trend: number;
+  trendDirection?: 'up' | 'down' | 'stable';
   current?: number;
   predicted?: number;
+  confidence?: number;
+  factors?: string[];
+  recommendations?: string[];
+  data: TimeSeriesPoint[];
+  forecast?: TimeSeriesPoint[];
+  insights: string[];
 }
 
 export interface DashboardConfig {
   layout: string;
-  refreshInterval?: number;
+  refreshInterval: number;
+  visibleWidgets: string[];
+  filters: AnalyticsFilters;
+  notifications?: {
+    enableRealTimeAlerts: boolean;
+    enableEmailReports: boolean;
+    enablePushNotifications: boolean;
+  };
 }

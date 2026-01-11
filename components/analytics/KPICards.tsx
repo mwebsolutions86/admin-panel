@@ -31,38 +31,41 @@ export function KPICards({ metrics, loading, currency = 'MAD' }: KPICardsProps) 
     );
   }
 
+  // Fallback si netMargin n'est pas calculé
+  const estimatedMargin = metrics.netMargin || (metrics.totalRevenue * 0.15);
+
   const kpiData = [
     {
       title: "Chiffre d'Affaires",
       value: formatCurrency(metrics.totalRevenue, currency),
       icon: <Wallet className="h-5 w-5 text-primary" />,
-      trend: "+10%",
-      trendUp: true,
+      trend: `${metrics.revenueGrowth > 0 ? '+' : ''}${metrics.revenueGrowth.toFixed(1)}%`,
+      trendUp: metrics.revenueGrowth >= 0,
       description: "Période actuelle"
     },
     {
       title: "Commandes",
       value: (metrics.ordersCount || 0).toString(),
       icon: <ShoppingBag className="h-5 w-5 text-blue-500" />,
-      trend: "+5%",
-      trendUp: true,
+      trend: `${metrics.ordersGrowth > 0 ? '+' : ''}${metrics.ordersGrowth.toFixed(1)}%`,
+      trendUp: metrics.ordersGrowth >= 0,
       description: "Validées"
     },
     {
       title: "Panier Moyen",
       value: formatCurrency(metrics.averageOrderValue, currency),
       icon: <TrendingUp className="h-5 w-5 text-orange-500" />,
-      trend: "-2%",
-      trendUp: false,
+      trend: `${metrics.averageBasketGrowth > 0 ? '+' : ''}${metrics.averageBasketGrowth.toFixed(1)}%`,
+      trendUp: metrics.averageBasketGrowth >= 0,
       description: "Moyenne"
     },
     {
-      title: "Marge Nette (Est.)",
-      value: formatCurrency(metrics.netMargin, currency),
+      title: "Marge Nette",
+      value: formatCurrency(estimatedMargin, currency),
       icon: <Euro className="h-5 w-5 text-green-500" />,
-      trend: "+8%",
+      trend: "+0%",
       trendUp: true,
-      description: "Estimée à 15%"
+      description: "Estimée"
     }
   ];
 

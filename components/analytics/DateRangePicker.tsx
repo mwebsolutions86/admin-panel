@@ -4,16 +4,15 @@ import React, { useState, useEffect } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
-import { CalendarDays, Check } from 'lucide-react';
+import { CalendarDays } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { DateRange as AppDateRange } from '@/types/analytics'; 
-import { DateRange as DayPickerDateRange } from 'react-day-picker';
+import { DateRange } from 'react-day-picker';
 
 export interface DateRangePickerProps {
-  value?: AppDateRange;
-  onChange: (dateRange: AppDateRange) => void;
+  value?: DateRange;
+  onChange: (range: DateRange | undefined) => void;
   className?: string;
   presets?: boolean;
 }
@@ -26,30 +25,23 @@ export function DateRangePicker({
 }: DateRangePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   
-  const [calendarDate, setCalendarDate] = useState<DayPickerDateRange | undefined>(
-    value ? { from: value.start, to: value.end } : undefined
-  );
+  // État interne pour la sélection en cours avant validation
+  const [calendarDate, setCalendarDate] = useState<DateRange | undefined>(value);
 
-  // Synchronisation props -> state
+  // Synchronisation props -> state quand la prop change
   useEffect(() => {
-    if (value) {
-      setCalendarDate({ from: value.start, to: value.end });
-    }
+    setCalendarDate(value);
   }, [value]);
 
-  // Handler interne : ne déclenche pas onChange tant que l'utilisateur n'a pas confirmé (ou sélectionné un preset)
-  const handleDateSelect = (range: DayPickerDateRange | undefined) => {
+  // Handler interne : ne déclenche pas onChange tant que l'utilisateur n'a pas confirmé
+  const handleDateSelect = (range: DateRange | undefined) => {
     setCalendarDate(range);
   };
 
-  // Appliquer la sélection manuelle
+  // Appliquer la sélection manuelle via le bouton "Appliquer"
   const applySelection = () => {
-    if (calendarDate?.from) {
-      const start = calendarDate.from;
-      const end = calendarDate.to || calendarDate.from;
-      onChange({ start, end });
-      setIsOpen(false);
-    }
+    onChange(calendarDate);
+    setIsOpen(false);
   };
 
   // Sélection rapide (Preset) : Applique immédiatement
@@ -58,19 +50,21 @@ export function DateRangePicker({
     const start = new Date();
     start.setDate(end.getDate() - days);
     
-    // Reset hours to avoid drift if needed, or keep precise time
-    start.setHours(0,0,0,0);
-    end.setHours(23,59,59,999);
-
     const newRange = { from: start, to: end };
     setCalendarDate(newRange);
-    onChange({ start, end });
+    onChange(newRange);
     setIsOpen(false);
   };
 
+  // Formatage pour l'affichage dans le bouton déclencheur
   const formatDateDisplay = () => {
-    if (!value?.start) return 'Sélectionner une période';
-    return `${format(value.start, 'dd MMM yyyy', { locale: fr })} - ${format(value.end || value.start, 'dd MMM yyyy', { locale: fr })}`;
+    if (!value?.from) return 'Sélectionner une période';
+    return (
+      <>
+        {format(value.from, 'dd MMM yyyy', { locale: fr })} 
+        {value.to && ` - ${format(value.to, 'dd MMM yyyy', { locale: fr })}`}
+      </>
+    );
   };
 
   const presetsOptions = [
@@ -79,23 +73,22 @@ export function DateRangePicker({
     { label: '7 derniers jours', days: 7 },
     { label: '30 derniers jours', days: 30 },
     { label: '90 derniers jours', days: 90 },
-    { label: 'Ce mois-ci', days: new Date().getDate() - 1 }, // Approximation simple
-    { label: 'Cette année', days: 365 },
+    { label: 'Ce mois-ci', days: new Date().getDate() - 1 },
   ];
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <Button 
+          id="date"
           variant="outline" 
           className={cn(
             'w-full justify-start text-left font-normal h-10',
-            'border-gray-200 bg-white hover:bg-gray-50 text-gray-900 shadow-sm transition-all',
             !value && 'text-muted-foreground',
             className
           )}
         >
-          <CalendarDays className="mr-2 h-4 w-4 text-gray-500" />
+          <CalendarDays className="mr-2 h-4 w-4 opacity-50" />
           <span className="truncate">{formatDateDisplay()}</span>
         </Button>
       </PopoverTrigger>
@@ -135,10 +128,6 @@ export function DateRangePicker({
                 locale={fr}
                 initialFocus
                 className="p-0 pointer-events-auto"
-                classNames={{
-                  day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-                  day_today: "bg-accent text-accent-foreground font-bold",
-                }}
               />
             </div>
             
