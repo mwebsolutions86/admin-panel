@@ -7,8 +7,11 @@ import {
   Plus, Edit3, Trash2, X, Save, Tag, Layers, 
   Image as ImageIcon, Loader2, UploadCloud, Search, Sparkles, 
   AlertCircle, CheckCircle2, Wand2, Settings2, Library, Utensils, Leaf,
-  Printer, DollarSign, Split, ChefHat // ✅ CORRECTION 1 : ChefHat (Majuscule)
+  Printer, DollarSign, Split, ChefHat 
 } from 'lucide-react'
+
+// ✅ IMPORT DU GESTIONNAIRE DE COMBOS
+import ComboManager from '@/components/menu/combo/ComboManager'
 
 // --- TYPES FRONTEND ÉTENDUS (POS READY) ---
 interface OptionChoice { id: string; name: string; price: number; is_available: boolean; }
@@ -66,7 +69,10 @@ export default function MenuLab() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<'product' | 'category' | 'option_group' | 'ingredient'>('product')
-  const [productTab, setProductTab] = useState<'general' | 'pricing' | 'composition' | 'pos'>('general')
+  
+  // ✅ MISE À JOUR DU STATE POUR INCLURE 'combo_setup'
+  const [productTab, setProductTab] = useState<'general' | 'pricing' | 'composition' | 'pos' | 'combo_setup'>('general')
+  
   const [searchQuery, setSearchQuery] = useState('')
   const [toasts, setToasts] = useState<Toast[]>([])
 
@@ -80,7 +86,6 @@ export default function MenuLab() {
   const [formIsAvailable, setFormIsAvailable] = useState(true)
   
   // Pricing & POS
-  // ✅ CORRECTION 2 : Ajout de 'combo' dans le type du state
   const [formType, setFormType] = useState<'simple' | 'variable' | 'combo'>('simple')
   
   const [formPrice, setFormPrice] = useState('')
@@ -176,8 +181,6 @@ export default function MenuLab() {
     setFormImage(product?.image_url || '')
     setFormIsAvailable(product?.is_available ?? true)
     
-    // Champs POS & Prix
-    // La correction du useState permet maintenant d'accepter 'combo' ici sans erreur
     setFormType(product?.type || 'simple')
     setFormPrice(product?.price?.toString() || '')
     setFormTaxRate(product?.tax_rate ?? 20)
@@ -214,14 +217,16 @@ export default function MenuLab() {
   }
   const removeVariation = (idx: number) => setFormVariations(formVariations.filter((_, i) => i !== idx))
 
-  // --- SAVE ---
+  // --- SAVE (CORRIGÉ) ---
   const handleSave = async () => {
       if (!formName) return notify("Nom obligatoire", "error");
       setUploading(true);
 
       try {
+          // 1. On récupère le brand_id du store actuel
           const { data: store } = await supabase.from('stores').select('brand_id').limit(1).single()
-          if (!store) throw new Error("Store error");
+          // ✅ CORRECTION CRITIQUE : Vérification stricte
+          if (!store?.brand_id) throw new Error("Impossible de récupérer l'identifiant de la marque (Store Brand ID manquante).");
 
           if (modalMode === 'category') {
               const payload = { name: formName, image_url: formImage, brand_id: store.brand_id }
@@ -244,10 +249,14 @@ export default function MenuLab() {
           }
           else if (modalMode === 'product') {
             const productPayload = {
-                name: formName, description: formDesc, 
-                price: formType === 'simple' ? parseFloat(formPrice || '0') : 0, 
-                image_url: formImage, is_available: formIsAvailable,
+                name: formName, 
+                description: formDesc, 
+                // Gestion du prix pour les combos
+                price: (formType === 'simple' || formType === 'combo') ? parseFloat(formPrice || '0') : 0, 
+                image_url: formImage, 
+                is_available: formIsAvailable,
                 category_id: editingId ? undefined : targetCatId,
+                brand_id: store.brand_id, // ✅ CORRECTION CRITIQUE : Ajout du brand_id manquant
                 type: formType,
                 tax_rate: formTaxRate,
                 preparation_time: formPrepTime,
@@ -260,18 +269,22 @@ export default function MenuLab() {
                 const { error } = await supabase.from('products').update(productPayload).eq('id', editingId);
                 if (error) throw error;
             } else {
+                // On force le category_id à la création
                 const { data, error } = await supabase.from('products').insert({ ...productPayload, category_id: targetCatId }).select().single();
                 if (error) throw error;
                 productId = data.id;
             }
 
             if (productId) {
+                // Mise à jour des relations (Groupes d'options)
                 await supabase.from('product_option_links').delete().eq('product_id', productId);
                 if (formLinkedGroups.length > 0) await supabase.from('product_option_links').insert(formLinkedGroups.map(gid => ({ product_id: productId, group_id: gid })));
                 
+                // Mise à jour des relations (Ingrédients retirables)
                 await supabase.from('product_ingredients').delete().eq('product_id', productId);
                 if (formLinkedIngredients.length > 0) await supabase.from('product_ingredients').insert(formLinkedIngredients.map(iid => ({ product_id: productId, ingredient_id: iid })));
 
+                // Mise à jour des Variantes (Si type variable)
                 if (formType === 'variable') {
                     await supabase.from('product_variations').delete().eq('product_id', productId);
                     if (formVariations.length > 0) {
@@ -430,6 +443,8 @@ export default function MenuLab() {
                                             <h3 className="font-bold text-gray-900 leading-tight">{product.name}</h3>
                                             <div className="flex flex-wrap gap-1 mt-2">
                                                 {product.type === 'variable' && <span className="text-[9px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded border border-orange-200 uppercase font-bold">Multi-taille</span>}
+                                                {/* ✅ BADGE COMBO */}
+                                                {product.type === 'combo' && <span className="text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 uppercase font-bold">Menu</span>}
                                                 {product.plu_code && <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 font-mono">PLU:{product.plu_code}</span>}
                                             </div>
                                         </div>
@@ -535,6 +550,12 @@ export default function MenuLab() {
                              <button onClick={() => setProductTab('composition')} className={`text-left px-4 py-3 rounded-xl text-sm font-bold transition flex items-center gap-3 ${productTab === 'composition' ? 'bg-purple-50 text-purple-600' : 'text-gray-500 hover:bg-gray-50'}`}>
                                  <Layers size={18}/> Composition
                              </button>
+                             {/* ✅ ONGLET COMBO (VISIBLE SI TYPE COMBO) */}
+                             {formType === 'combo' && (
+                                <button onClick={() => setProductTab('combo_setup')} className={`text-left px-4 py-3 rounded-xl text-sm font-bold transition flex items-center gap-3 ${productTab === 'combo_setup' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:bg-gray-50'}`}>
+                                    <ChefHat size={18}/> Config. Menu
+                                </button>
+                             )}
                              <button onClick={() => setProductTab('pos')} className={`text-left px-4 py-3 rounded-xl text-sm font-bold transition flex items-center gap-3 ${productTab === 'pos' ? 'bg-slate-100 text-slate-700' : 'text-gray-500 hover:bg-gray-50'}`}>
                                  <Settings2 size={18}/> POS & Fiscalité
                              </button>
@@ -581,25 +602,31 @@ export default function MenuLab() {
                          {modalMode === 'product' && productTab === 'pricing' && (
                              <div className="max-w-3xl space-y-8">
                                  {/* SÉLECTEUR TYPE */}
-                                 <div className="flex gap-4">
+                                 <div className="grid grid-cols-3 gap-4">
                                      <button onClick={() => setFormType('simple')} className={`flex-1 p-4 rounded-2xl border-2 text-left transition-all ${formType === 'simple' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
                                          <div className="font-black text-lg mb-1 flex items-center gap-2"><Tag size={20}/> Produit Simple</div>
-                                         <div className="text-sm text-gray-500">Un seul prix (ex: Coca, Burger standard).</div>
+                                         <div className="text-sm text-gray-500">Un seul prix (ex: Coca).</div>
                                      </button>
                                      <button onClick={() => setFormType('variable')} className={`flex-1 p-4 rounded-2xl border-2 text-left transition-all ${formType === 'variable' ? 'border-orange-500 bg-orange-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
                                          <div className="font-black text-lg mb-1 flex items-center gap-2"><Split size={20}/> Produit Variable</div>
-                                         <div className="text-sm text-gray-500">Plusieurs tailles ou déclinaisons (ex: Pizzas, Vêtements).</div>
+                                         <div className="text-sm text-gray-500">Tailles (ex: Pizzas).</div>
+                                     </button>
+                                     {/* ✅ OPTION COMBO */}
+                                     <button onClick={() => setFormType('combo')} className={`flex-1 p-4 rounded-2xl border-2 text-left transition-all ${formType === 'combo' ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                                         <div className="font-black text-lg mb-1 flex items-center gap-2"><ChefHat size={20}/> Menu Combo</div>
+                                         <div className="text-sm text-gray-500">Formule composée.</div>
                                      </button>
                                  </div>
 
-                                 {/* LOGIQUE SIMPLE */}
-                                 {formType === 'simple' && (
+                                 {/* LOGIQUE SIMPLE ET COMBO */}
+                                 {(formType === 'simple' || formType === 'combo') && (
                                      <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm animate-in fade-in">
                                          <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Prix de vente (DH)</label>
                                          <div className="relative">
                                              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-gray-400">DH</span>
                                              <input type="number" className="w-full pl-12 p-4 bg-gray-50 border-none rounded-xl font-black text-3xl outline-none focus:ring-2 focus:ring-blue-500" value={formPrice} onChange={e => setFormPrice(e.target.value)} placeholder="0.00"/>
                                          </div>
+                                         {formType === 'combo' && <p className="text-xs text-gray-500 mt-2">Ceci est le prix de base du menu. Les options peuvent ajouter un supplément.</p>}
                                      </div>
                                  )}
 
@@ -659,6 +686,21 @@ export default function MenuLab() {
                                          ))}
                                      </div>
                                  </div>
+                             </div>
+                         )}
+
+                         {/* ✅ NOUVEL ONGLET : CONFIGURATION COMBO */}
+                         {modalMode === 'product' && productTab === 'combo_setup' && (
+                             <div className="max-w-4xl mx-auto">
+                                {!editingId ? (
+                                    <div className="text-center py-10 bg-indigo-50 rounded-2xl border border-indigo-200">
+                                        <AlertCircle className="mx-auto h-10 w-10 text-indigo-500 mb-2" />
+                                        <h3 className="font-bold text-indigo-800">Enregistrement requis</h3>
+                                        <p className="text-indigo-600">Veuillez d'abord créer le produit de base et cliquer sur Enregistrer<br/>avant de configurer les étapes du menu.</p>
+                                    </div>
+                                ) : (
+                                    <ComboManager parentProductId={editingId} />
+                                )}
                              </div>
                          )}
 
