@@ -1,20 +1,19 @@
 /**
  * HOOKS REACT POUR L'INTERNATIONALISATION - Universal Eats
  * Hooks pour utiliser la localisation dans les composants React
- * Support RTL, formats locaux, changements dynamiques
  */
 
 "use client";
 
-import { useState, useEffect, useContext, createContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext, createContext, useCallback } from 'react';
 import { 
   localizationService, 
   SupportedLanguage, 
   Market,
   LocalizationConfig,
-  SUPPORTED_LANGUAGES
-} from '../lib/localization-service';
-import { translationManager, TranslationProgress } from '../lib/translation-manager';
+  SUPPORTED_LANGUAGES,
+  SUPPORTED_MARKETS
+} from '../lib/localization-service'; // Assurez-vous que ce chemin est correct
 
 // Contexte de localisation
 interface LocalizationContextType {
@@ -54,6 +53,7 @@ export function LocalizationProvider({
 
   // Configuration du service
   useEffect(() => {
+    // On configure le service une seule fois au montage ou quand les props changent
     localizationService.configure({
       currentLanguage,
       currentMarket,
@@ -64,25 +64,31 @@ export function LocalizationProvider({
     });
   }, [defaultLanguage, defaultMarket, enableGeoDetection, cacheTranslations, enableRTL]);
 
-  // Initialisation
+  // Initialisation et Écouteurs
   useEffect(() => {
+    let mounted = true;
+
     const initialize = async () => {
       try {
-        setIsLoading(true);
-        setError(null);
+        if(mounted) setIsLoading(true);
+        if(mounted) setError(null);
 
-        // LocalizationService initializes itself when instantiated; proceed
+        // Le service s'auto-initialise, on récupère juste l'état initial
+        if(mounted) {
+            setCurrentLanguage(localizationService.getCurrentLanguage());
+            setCurrentMarket(localizationService.getCurrentMarket());
+            // Vérification sécurisée pour la direction RTL
+            const langInfo = SUPPORTED_LANGUAGES.find(l => l.code === localizationService.getCurrentLanguage());
+            setIsRTL(langInfo?.direction === 'rtl');
+        }
 
-        // Mettre à jour les états
-        setCurrentLanguage(localizationService.getCurrentLanguage());
-        setCurrentMarket(localizationService.getCurrentMarket());
-        setIsRTL(SUPPORTED_LANGUAGES.find(l => l.code === localizationService.getCurrentLanguage())?.direction === 'rtl');
-
-        // Écouter les changements
+        // Écouter les changements venant du service (ex: géolocalisation terminée)
         const handleChange = () => {
+          if(!mounted) return;
           setCurrentLanguage(localizationService.getCurrentLanguage());
           setCurrentMarket(localizationService.getCurrentMarket());
-          setIsRTL(SUPPORTED_LANGUAGES.find(l => l.code === localizationService.getCurrentLanguage())?.direction === 'rtl');
+          const langInfo = SUPPORTED_LANGUAGES.find(l => l.code === localizationService.getCurrentLanguage());
+          setIsRTL(langInfo?.direction === 'rtl');
         };
 
         localizationService.addListener(handleChange);
@@ -91,14 +97,21 @@ export function LocalizationProvider({
           localizationService.removeListener(handleChange);
         };
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        setError(errorMessage);
+        if(mounted) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            setError(errorMessage);
+        }
       } finally {
-        setIsLoading(false);
+        if(mounted) setIsLoading(false);
       }
     };
 
-    initialize();
+    const cleanup = initialize();
+    
+    return () => { 
+        mounted = false;
+        // cleanup si nécessaire
+    };
   }, []);
 
   const contextValue: LocalizationContextType = {
@@ -160,18 +173,6 @@ export function useCurrentLanguage(): string {
   return currentLanguage;
 }
 
-// Hook pour obtenir le marché actuel
-export function useCurrentMarket(): string {
-  const { currentMarket } = useLocalization();
-  return currentMarket;
-}
-
-// Hook pour vérifier si la direction RTL est active
-export function useRTL(): boolean {
-  const { isRTL } = useLocalization();
-  return isRTL;
-}
-
 // Hook pour changer la langue
 export function useSetLanguage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -194,158 +195,7 @@ export function useSetLanguage() {
   return { setLanguage, isLoading, error };
 }
 
-// Hook pour changer le marché
-export function useSetMarket() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const setMarket = useCallback(async (market: string) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      await localizationService.setMarket(market);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      setError(errorMessage);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  return { setMarket, isLoading, error };
-}
-
-// Hook pour les formats locaux
-export function useLocaleFormat() {
-  const { currentLanguage, currentMarket } = useLocalization();
-
-  const formatCurrency = useCallback((
-    amount: number,
-    currency?: string,
-    options?: {
-      minimumFractionDigits?: number;
-      maximumFractionDigits?: number;
-      locale?: string;
-    }
-  ): string => {
-    const market = localizationService.getCurrentMarketInfo();
-    const finalCurrency = currency || market?.currency || 'EUR';
-    
-    const locale = getLocaleCode(currentLanguage, currentMarket);
-    
-    return new Intl.NumberFormat(locale, {
-      style: 'currency',
-      currency: finalCurrency,
-      minimumFractionDigits: options?.minimumFractionDigits,
-      maximumFractionDigits: options?.maximumFractionDigits
-    }).format(amount);
-  }, [currentLanguage, currentMarket]);
-
-  const formatDate = useCallback((
-    date: Date | string | number,
-    options?: Intl.DateTimeFormatOptions
-  ): string => {
-    const market = localizationService.getCurrentMarketInfo();
-    const locale = getLocaleCode(currentLanguage, currentMarket);
-    
-    const defaultOptions: Intl.DateTimeFormatOptions = {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    };
-
-    const dateObj = date instanceof Date ? date : new Date(date);
-    
-    return new Intl.DateTimeFormat(locale, { ...defaultOptions, ...options }).format(dateObj);
-  }, [currentLanguage, currentMarket]);
-
-  const formatTime = useCallback((
-    date: Date | string | number,
-    options?: Intl.DateTimeFormatOptions
-  ): string => {
-    const locale = getLocaleCode(currentLanguage, currentMarket);
-    
-    const defaultOptions: Intl.DateTimeFormatOptions = {
-      hour: '2-digit',
-      minute: '2-digit'
-    };
-
-    const dateObj = date instanceof Date ? date : new Date(date);
-    
-    return new Intl.DateTimeFormat(locale, { ...defaultOptions, ...options }).format(dateObj);
-  }, [currentLanguage, currentMarket]);
-
-  const formatNumber = useCallback((
-    number: number,
-    options?: Intl.NumberFormatOptions
-  ): string => {
-    const locale = getLocaleCode(currentLanguage, currentMarket);
-    
-    return new Intl.NumberFormat(locale, options).format(number);
-  }, [currentLanguage, currentMarket]);
-
-  const formatPhoneNumber = useCallback((phoneNumber: string): string => {
-    const market = localizationService.getCurrentMarketInfo();
-    if (!market) return phoneNumber;
-
-    // Formatage basique selon le marché
-    switch (market.code) {
-      case 'FR':
-        return phoneNumber.replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
-      case 'MA':
-        return phoneNumber.replace(/(\d{3})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5');
-      case 'US':
-        return phoneNumber.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
-      case 'ES':
-        return phoneNumber.replace(/(\d{3})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4');
-      default:
-        return phoneNumber;
-    }
-  }, [currentMarket]);
-
-  return {
-    formatCurrency,
-    formatDate,
-    formatTime,
-    formatNumber,
-    formatPhoneNumber
-  };
-}
-
-// Hook pour les informations de localisation
-export function useLocaleInfo() {
-  const { currentLanguage, currentMarket, supportedLanguages, supportedMarkets } = useLocalization();
-
-  const getCurrentLanguageInfo = useCallback((): SupportedLanguage | undefined => {
-    return supportedLanguages.find(lang => lang.code === currentLanguage);
-  }, [currentLanguage, supportedLanguages]);
-
-  const getCurrentMarketInfo = useCallback((): Market | undefined => {
-    return supportedMarkets.find(market => market.code === currentMarket);
-  }, [currentMarket, supportedMarkets]);
-
-  const getLanguageByCode = useCallback((code: string): SupportedLanguage | undefined => {
-    return supportedLanguages.find(lang => lang.code === code);
-  }, [supportedLanguages]);
-
-  const getMarketByCode = useCallback((code: string): Market | undefined => {
-    return supportedMarkets.find(market => market.code === code);
-  }, [supportedMarkets]);
-
-  return {
-    currentLanguage,
-    currentMarket,
-    supportedLanguages,
-    supportedMarkets,
-    getCurrentLanguageInfo,
-    getCurrentMarketInfo,
-    getLanguageByCode,
-    getMarketByCode
-  };
-}
-
-// Hook pour les messages localisés
+// Hook pour les messages localisés (Succès, Erreur, etc.)
 export function useLocalizedMessage() {
   const { translate } = useTranslate();
 
@@ -355,147 +205,15 @@ export function useLocalizedMessage() {
     params?: Record<string, any>
   ): string => {
     const messageKey = `msg.${type}.${key}`;
-    return translate(messageKey, params);
+    // Fallback intelligent : si la clé n'existe pas, on affiche la clé ou une valeur par défaut
+    const translated = translate(messageKey, params);
+    return translated === messageKey ? key : translated;
   }, [translate]);
 
-  const success = useCallback((key: string, params?: Record<string, any>): string => {
-    return showMessage('success', key, params);
-  }, [showMessage]);
-
-  const error = useCallback((key: string, params?: Record<string, any>): string => {
-    return showMessage('error', key, params);
-  }, [showMessage]);
-
-  const warning = useCallback((key: string, params?: Record<string, any>): string => {
-    return showMessage('warning', key, params);
-  }, [showMessage]);
-
-  const info = useCallback((key: string, params?: Record<string, any>): string => {
-    return showMessage('info', key, params);
-  }, [showMessage]);
+  const success = useCallback((key: string, params?: Record<string, any>) => showMessage('success', key, params), [showMessage]);
+  const error = useCallback((key: string, params?: Record<string, any>) => showMessage('error', key, params), [showMessage]);
+  const warning = useCallback((key: string, params?: Record<string, any>) => showMessage('warning', key, params), [showMessage]);
+  const info = useCallback((key: string, params?: Record<string, any>) => showMessage('info', key, params), [showMessage]);
 
   return { success, error, warning, info };
-}
-
-// Hook pour les composants avec changement de langue dynamique
-export function useTranslationKey(key: string, params?: Record<string, any>) {
-  const [translatedValue, setTranslatedValue] = useState('');
-  const { translate } = useTranslate();
-
-  useEffect(() => {
-    setTranslatedValue(translate(key, params));
-  }, [key, params, translate]);
-
-  return translatedValue;
-}
-
-// Hook pour les statistiques de traduction
-export function useTranslationStats() {
-  const [stats, setStats] = useState<TranslationProgress[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const refreshStats = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const languages = localizationService.getSupportedLanguages().map(l => l.code);
-      const markets = localizationService.getSupportedMarkets().map(m => m.code);
-      
-      const progressReports = await translationManager.generateProgressReport(languages, markets);
-      setStats(progressReports);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshStats();
-  }, [refreshStats]);
-
-  return { stats, refreshStats, isLoading, error };
-}
-
-// Hook pour la préchargement des traductions
-export function usePreloadTranslations() {
-  const [isPreloading, setIsPreloading] = useState(false);
-
-  const preloadLanguages = useCallback(async (languages: string[]) => {
-    try {
-      setIsPreloading(true);
-      await localizationService.preloadTranslations(languages);
-    } catch (error) {
-      console.error('Erreur lors du préchargement:', error);
-    } finally {
-      setIsPreloading(false);
-    }
-  }, []);
-
-  return { preloadLanguages, isPreloading };
-}
-
-// Hook pour la gestion du cache de traduction
-export function useTranslationCache() {
-  const clearCache = useCallback(async () => {
-    await localizationService.clearCache();
-  }, []);
-
-  const getStats = useCallback(() => {
-    return localizationService.getLocalizationStats();
-  }, []);
-
-  return { clearCache, getStats };
-}
-
-// Hook pour l'accès direct au service de localisation
-export function useLocalizationService() {
-  return localizationService;
-}
-
-// Fonction utilitaire pour obtenir le code de locale
-function getLocaleCode(language: string, market: string): string {
-  const localeMap: Record<string, string> = {
-    'fr_FR': 'fr-FR',
-    'fr_MA': 'fr-MA',
-    'ar_MA': 'ar-MA',
-    'en_US': 'en-US',
-    'es_ES': 'es-ES'
-  };
-
-  return localeMap[`${language}_${market}`] || `${language}-${market}`;
-}
-
-// Hook pour les métriques de performance
-export function useLocalizationPerformance() {
-  const [performanceData, setPerformanceData] = useState<{
-    loadTime: number;
-    cacheHitRate: number;
-    translationCount: number;
-  }>({
-    loadTime: 0,
-    cacheHitRate: 0,
-    translationCount: 0
-  });
-
-  useEffect(() => {
-    const measurePerformance = () => {
-      const stats = localizationService.getLocalizationStats();
-      setPerformanceData({
-        loadTime: Date.now(), // Dans une implémentation complète, mesurer le temps réel
-        cacheHitRate: 85, // Simulation
-        translationCount: stats.totalTranslations
-      });
-    };
-
-    measurePerformance();
-    const interval = setInterval(measurePerformance, 30000); // Toutes les 30 secondes
-
-    return () => clearInterval(interval);
-  }, []);
-
-  return performanceData;
 }
