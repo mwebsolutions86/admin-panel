@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 
 // ✅ IMPORT DU GESTIONNAIRE DE COMBOS
+// Assurez-vous que ce composant existe ou commentez la ligne si ce n'est pas encore fait
 import ComboManager from '@/components/menu/combo/ComboManager'
 
 // --- TYPES FRONTEND ÉTENDUS (POS READY) ---
@@ -314,20 +315,39 @@ export default function MenuLab() {
   const generateAIImage = async () => {
     if (!formName) return notify("Nom requis pour l'IA", "error");
     setGenerating(true);
+    
     try {
         const prompt = modalMode === 'category' 
             ? `artistic food photography of ${formName}, menu style, 4k` 
             : `delicious ${formName}, ${formDesc}, food photography, 4k, studio light`;
-        const res = await fetch(`GET https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=800&height=800&model=flux&nologo=true`);
+
+        // ✅ MODIFICATION : Appel vers notre API interne au lieu de Pollinations direct
+        const res = await fetch(`/api/ai/generate?prompt=${encodeURIComponent(prompt)}`);
+        
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || "Erreur de l'API IA");
+        }
+
         const blob = await res.blob();
         
         const fileName = `ai-${Date.now()}.webp`;
-        await supabase.storage.from('images').upload(fileName, blob, { contentType: 'image/webp' });
+        
+        // Upload vers Supabase
+        const { error: uploadError } = await supabase.storage.from('images').upload(fileName, blob, { contentType: 'image/webp' });
+        if (uploadError) throw uploadError;
+
         const { data } = supabase.storage.from('images').getPublicUrl(fileName);
         setFormImage(`${data.publicUrl}?t=${Date.now()}`); 
+        
         notify("Image IA générée !", "success");
-    } catch(e) { notify("Erreur IA", "error"); }
-    finally { setGenerating(false); }
+
+    } catch(e: any) { 
+        console.error("Erreur IA:", e);
+        notify(e.message || "Erreur lors de la génération", "error"); 
+    } finally { 
+        setGenerating(false); 
+    }
   }
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -401,7 +421,8 @@ export default function MenuLab() {
                             {categories.map(cat => (
                                 <div key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`p-3 rounded-xl cursor-pointer transition-all border flex items-center gap-3 group ${selectedCategory === cat.id ? 'bg-white shadow-md border-white' : 'border-transparent hover:bg-white/30'}`}>
                                     <div className="w-10 h-10 rounded-lg bg-gray-100 relative overflow-hidden">
-                                        {cat.image_url && <Image src={cat.image_url} fill className="object-cover" alt={cat.name}/>}
+                                        {/* ✅ CORRECTION IMAGE LISTE RAYONS */}
+                                        {cat.image_url && <Image src={cat.image_url} fill className="object-cover" alt={cat.name} sizes="40px"/>}
                                     </div>
                                     <div className="flex-1">
                                         <div className="font-bold text-sm">{cat.name}</div>
@@ -432,7 +453,8 @@ export default function MenuLab() {
                                 {categories.find(c => c.id === selectedCategory)?.products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())).map(product => (
                                     <div key={product.id} onClick={() => openProductModal(product)} className={`group bg-white p-3 rounded-[24px] border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative cursor-pointer ${!product.is_available ? 'opacity-60 grayscale' : ''}`}>
                                         <div className="aspect-[4/3] w-full bg-gray-100 rounded-[20px] overflow-hidden relative mb-3">
-                                            {product.image_url ? <Image src={product.image_url} fill className="object-cover" alt={product.name}/> : <ImageIcon className="m-auto text-gray-300" size={32}/>}
+                                            {/* ✅ CORRECTION IMAGE GRILLE PRODUITS */}
+                                            {product.image_url ? <Image src={product.image_url} fill className="object-cover" alt={product.name} sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"/> : <ImageIcon className="m-auto text-gray-300" size={32}/>}
                                             <div className="absolute top-2 right-2 bg-black/80 text-white text-xs font-bold px-2 py-1 rounded-full">
                                                 {product.type === 'variable' && product.variations.length > 0 
                                                     ? `Dès ${Math.min(...product.variations.map(v => v.price))} DH` 
@@ -579,7 +601,8 @@ export default function MenuLab() {
                                      </div>
                                      <div className="col-span-2 bg-white p-4 rounded-2xl border border-gray-200 flex items-center gap-4">
                                          <div className="w-20 h-20 bg-gray-100 rounded-xl relative overflow-hidden shrink-0">
-                                             {formImage ? <Image src={formImage} fill className="object-cover" alt="preview"/> : <ImageIcon className="m-auto mt-6 text-gray-300"/>}
+                                             {/* ✅ CORRECTION IMAGE PREVIEW UPLOAD */}
+                                             {formImage ? <Image src={formImage} fill className="object-cover" alt="preview" sizes="80px"/> : <ImageIcon className="m-auto mt-6 text-gray-300"/>}
                                          </div>
                                          <div className="flex-1">
                                              <div className="font-bold text-gray-800">Visuel Produit</div>
@@ -588,8 +611,15 @@ export default function MenuLab() {
                                                  <label className="px-4 py-2 bg-gray-100 rounded-lg text-xs font-bold cursor-pointer hover:bg-gray-200">
                                                      Uploader <input type="file" className="hidden" onChange={handleImageUpload}/>
                                                  </label>
-                                                 <button onClick={() => {}} className="px-4 py-2 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100 flex items-center gap-1">
-                                                     <Wand2 size={12}/> Générer IA
+                                                 {/* ✅ BOUTON CORRIGÉ ICI */}
+                                                 <button 
+                                                    type="button"
+                                                    onClick={generateAIImage} 
+                                                    disabled={generating}
+                                                    className="px-4 py-2 bg-purple-50 text-purple-600 rounded-lg text-xs font-bold hover:bg-purple-100 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                 >
+                                                     {generating ? <Loader2 size={12} className="animate-spin"/> : <Wand2 size={12}/>} 
+                                                     {generating ? 'Génération...' : 'Générer IA'}
                                                  </button>
                                              </div>
                                          </div>

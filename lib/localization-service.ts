@@ -206,31 +206,20 @@ export class LocalizationService {
   /**
    * Détecte la langue préférée de l'utilisateur
    */
-  private async detectUserLanguage(): Promise<string> {
-    // Priorité: URL params > Local Storage > Navigator > Défaut
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlLang = urlParams.get('lang');
-    if (urlLang && this.isLanguageSupported(urlLang)) {
-      return urlLang;
-    }
-
-    const storedLang = localStorage.getItem('ue-language');
-    if (storedLang && this.isLanguageSupported(storedLang)) {
-      return storedLang;
-    }
-
+ // CORRECTION : Vérification de l'environnement navigateur
+  private detectUserLanguage(): string {
+    if (typeof window === 'undefined') return 'fr'; // Fallback pour le serveur (SSR)
+    
+    // Logique existante pour le client
     const browserLang = navigator.language.split('-')[0];
-    if (this.isLanguageSupported(browserLang)) {
-      return browserLang;
-    }
-
-    return 'fr'; // Français par défaut
+    return ['fr', 'en', 'ar', 'es'].includes(browserLang) ? browserLang : 'fr';
   }
 
   /**
    * Détecte le marché de l'utilisateur par géolocalisation
    */
-  private async detectUserMarket(): Promise<string | null> {
+  private async detectUserMarket(): Promise<string> {
+    if (typeof window === 'undefined') return 'MA';
     try {
       // Utiliser l'API de géolocalisation si disponible
       if ('geolocation' in navigator) {

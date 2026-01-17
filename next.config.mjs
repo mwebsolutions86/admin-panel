@@ -2,22 +2,14 @@
 const nextConfig = {
   reactStrictMode: true,
   eslint: {
-    ignoreDuringBuilds: true
+    ignoreDuringBuilds: true,
   },
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        // 👇 C'est l'adresse de ton projet Supabase (celle qui est dans l'erreur)
-        hostname: 'kdoodpxjgczqajykcqcd.supabase.co', 
-        port: '',
-        pathname: '/storage/v1/object/public/**',
+        protocol: "https",
+        hostname: "**", // 👈 Cette ligne magique autorise TOUS les sites (Unsplash, Supabase, Google, etc.)
       },
-      // On ajoute aussi unsplash pour les images de démo qu'on a mises dans le script SQL
-      {
-        protocol: 'https',
-        hostname: 'images.unsplash.com',
-      }
     ],
   },
 };

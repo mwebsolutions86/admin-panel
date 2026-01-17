@@ -41,8 +41,10 @@ export function OrdersChart({ data, filters }: OrdersChartProps) {
   };
 
   return (
-    <div className="h-[350px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
+    // Ajout de min-w-0 pour la stabilité Grid
+    <div className="h-[350px] w-full min-w-0">
+      {/* Fixation de la hauteur à 350px pour éviter le bug height(-1) */}
+      <ResponsiveContainer width="100%" height={350}>
         <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
           <XAxis 
