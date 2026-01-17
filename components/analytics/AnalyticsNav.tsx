@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Package, Activity, FileText } from 'lucide-react'
+import { LayoutDashboard, Package, Activity } from 'lucide-react'
 
 const navItems = [
   { 
@@ -23,26 +23,23 @@ const navItems = [
     icon: Activity,
     exact: false
   },
-  // Vous pourrez ajouter "Rapports" ici plus tard
 ]
 
 export default function AnalyticsNav() {
   const pathname = usePathname()
 
   return (
-    <div className="border-b border-slate-200 bg-white sticky top-0 z-10 pt-6 px-6 md:px-8">
+    <div className="border-b border-slate-200 bg-white sticky top-0 z-10 pt-6 px-6 md:px-8 mb-6">
       <div className="max-w-[1920px] mx-auto">
-        {/* En-tête de section */}
         <div className="mb-6">
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">
             Analytics & Rapports
           </h1>
           <p className="text-slate-500 font-medium mt-1">
-            Analysez la performance de votre restaurant en temps réel.
+            Pilotage de la performance en temps réel
           </p>
         </div>
 
-        {/* Barre d'onglets */}
         <div className="flex gap-1 overflow-x-auto no-scrollbar">
           {navItems.map((item) => {
             const isActive = item.exact 

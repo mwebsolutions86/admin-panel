@@ -5,8 +5,9 @@ import { ThemeProvider } from "@/components/theme-provider";
 import AuthGuard from "@/components/AuthGuard";
 import LayoutShell from "@/components/LayoutShell";
 import { LocalizationProvider } from "@/hooks/use-localization";
-// 👇 Import du nouveau QueryProvider
 import QueryProvider from "@/components/QueryProvider";
+// ✅ AJOUT : Import du Footer (avec les accolades car c'est un export nommé)
+import { ModuleFooter } from "@/components/ModuleFooter";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -32,20 +33,26 @@ export default function RootLayout({
             enableSystem={false}
             disableTransitionOnChange
           >
-            {/* 👇 AJOUT : On enveloppe avec QueryProvider */}
             <QueryProvider>
               <LocalizationProvider>
-                
-                {/* 1. SÉCURITÉ : On enveloppe tout dans le Gardien */}
                 <AuthGuard>
-                  
-                  {/* 2. STRUCTURE : On utilise notre coquille intelligente */}
                   <LayoutShell>
-                      {children}
+                      {/* ✅ AJOUT : Structure Flex pour coller le footer en bas */}
+                      <div className="flex flex-col min-h-[calc(100vh-64px)]">
+                        
+                        {/* Zone de contenu principale qui prend tout l'espace disponible */}
+                        <div className="flex-1">
+                          {children}
+                        </div>
+
+                        {/* Footer persistant sur TOUTES les pages */}
+                        <div className="mt-auto z-50 relative">
+                          <ModuleFooter />
+                        </div>
+
+                      </div>
                   </LayoutShell>
-
                 </AuthGuard>
-
               </LocalizationProvider>
             </QueryProvider>
         </ThemeProvider>

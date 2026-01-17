@@ -43,7 +43,7 @@ export default function OperationsPage() {
           )}
         </div>
       </div>
-      <ModuleFooter />
+      
     </LayoutShell>
   );
 }

@@ -97,8 +97,7 @@ export default function AnalyticsPage() {
         <AnalyticsDashboard />
       </div>
 
-      {/* Footer Global (Image 8696c5.png) */}
-      <ModuleFooter />
+      
     </div>
   );
 }
