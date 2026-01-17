@@ -12,7 +12,14 @@ import {
   HistoryIcon, 
   Users,
   Bike,
-  TrendingUp // <--- IMPORT
+  TrendingUp,
+  Banknote,
+  Heart,
+  Tag,
+  Bell,
+  Package,      // Pour l'inventaire
+  Smartphone,   // Pour l'app mobile
+  CreditCard    // Pour les paiements
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -26,39 +33,23 @@ export function Sidebar() {
   useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      
       if (user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single()
-        
-        if (data) {
-            setRole(data.role)
-        }
+        const { data } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+        if (data) setRole(data.role)
       } else {
         setRole('')
       }
       setLoading(false)
     }
-
     checkUser()
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        if (event === 'SIGNED_IN') {
-            checkUser() 
-        } else if (event === 'SIGNED_OUT') {
-            setRole('')
-        }
+        if (event === 'SIGNED_IN') checkUser() 
+        else if (event === 'SIGNED_OUT') setRole('')
     })
-
     return () => subscription.unsubscribe()
   }, [router])
 
-  if (pathname === '/login') {
-    return null;
-  }
+  if (pathname === '/login') return null;
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -72,40 +63,55 @@ export function Sidebar() {
     { name: 'QR Codes', href: '/qr-codes', icon: QrCode },
   ]
 
+  // Menu complet pour l'administrateur
   const adminItems = [
-    { name: 'Analytics', href: '/analytics', icon: TrendingUp }, // <--- AJOUTÉ ICI
+    { name: 'Tableau de Bord', href: '/analytics', icon: TrendingUp },
+    
+    // Section Gestion Produit & Stock
     { name: 'Gestion Menu', href: '/menu', icon: UtensilsCrossed },
+    { name: 'Inventaire & Stocks', href: '/inventory-admin', icon: Package }, // ✅ Ajouté
+    
+    // Section Commerciale
+    { name: 'Marketing & Promo', href: '/promotions', icon: Tag },
+    { name: 'Fidélité Client', href: '/loyalty', icon: Heart },
+    
+    // Section Finance & Admin
+    { name: 'Finance & Taxes', href: '/finance', icon: Banknote },
+    { name: 'Paiements', href: '/payments', icon: CreditCard }, // ✅ Ajouté
+    
+    // Section Opérations
     { name: 'Points de Vente', href: '/stores', icon: Store },
     { name: 'Flotte Livreurs', href: '/drivers', icon: Bike }, 
-    { name: 'Équipe & Accès', href: '/users', icon: Users },
+    { name: 'Utilisateurs & Accès', href: '/users', icon: Users },
+    
+    // Section Configuration
+    { name: 'App Mobile', href: '/mobile-app', icon: Smartphone }, // ✅ Ajouté
+    { name: 'Notifications', href: '/notifications', icon: Bell },
     { name: 'Paramètres', href: '/settings', icon: Settings },
   ]
 
-  // Seul le SUPER_ADMIN voit les items d'admin
   const menuItems = role === 'SUPER_ADMIN' 
     ? [...commonItems, ...adminItems] 
     : commonItems
 
   return (
-    <aside className="w-64 bg-slate-900 text-white flex flex-col h-screen fixed left-0 top-0 border-r border-slate-800 z-50">
+    <aside className="w-64 bg-slate-900 text-white flex flex-col h-screen fixed left-0 top-0 border-r border-slate-800 z-50 overflow-hidden">
       
-      {/* LOGO */}
-      <div className="p-6 border-b border-slate-800 flex items-center gap-3">
+      {/* HEADER */}
+      <div className="p-6 border-b border-slate-800 flex items-center gap-3 shrink-0">
         <div className="bg-white/10 p-2 rounded-lg">
             <Store size={24} className="text-yellow-400" />
         </div>
         <div>
             <h1 className="font-bold text-lg leading-tight">Universal Eats</h1>
-            <p className="text-xs text-slate-400">
-                {loading ? '...' : (role === 'SUPER_ADMIN' ? 'Siège / Super Admin' : 'Manager Point de Vente')}
-            </p>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wider">Admin Panel</p>
         </div>
       </div>
 
-      {/* NAVIGATION */}
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
+      {/* NAVIGATION SCROLLABLE */}
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
         {menuItems.map((item) => {
-          const isActive = pathname === item.href
+          const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
           
           return (
             <Link 
@@ -117,23 +123,22 @@ export function Sidebar() {
                   : 'text-slate-400 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <item.icon size={20} />
-              <span>{item.name}</span>
+              <item.icon size={18} />
+              <span className="text-sm">{item.name}</span>
             </Link>
           )
         })}
       </nav>
 
       {/* FOOTER SIDEBAR */}
-      <div className="p-4 border-t border-slate-800">
+      <div className="p-4 border-t border-slate-800 shrink-0 bg-slate-900">
         <button 
             onClick={handleLogout}
             className="flex items-center gap-3 px-4 py-3 w-full rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition"
         >
-            <LogOut size={20} />
-            <span>Déconnexion</span>
+            <LogOut size={18} />
+            <span className="text-sm font-medium">Déconnexion</span>
         </button>
-        <p className="text-center text-[10px] text-slate-600 mt-4">v1.0.0 - Control Tower</p>
       </div>
 
     </aside>

@@ -6,13 +6,11 @@
 'use client';
 
 import { AnalyticsDashboard } from '@/components/analytics/AnalyticsDashboard';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Download, Target } from 'lucide-react';
 import { useAnalytics } from '@/hooks/use-analytics';
 import Link from 'next/link';
-// Import du Footer Global comme demandé
-import { ModuleFooter } from "@/components/ModuleFooter"; 
+
 
 export default function AnalyticsPage() {
   const { businessMetrics, operationalMetrics, alerts } = useAnalytics({
